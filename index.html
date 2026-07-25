@@ -72,6 +72,7 @@
     </div>
     <p class="sub" id="nowsong" style="color:var(--acc)"></p>
     <p class="sub" id="fragline"></p>
+    <div id="updbar" style="display:none;cursor:pointer;border:2px solid #d9c489;color:#d9c489;padding:9px 20px;font-size:13px;margin-top:4px"></div>
     <p style="position:absolute;right:12px;bottom:10px;margin:0;font-size:11px;color:#5c6474" id="verline"></p>
   </div>
 
@@ -854,12 +855,18 @@ if(!(window.AudioContext||window.webkitAudioContext)){ pb.textContent='浏览器
 else{
   (async()=>{
     try{
-      const r=await fetch('manifest.json',{cache:'no-cache'});
+      const r=await fetch('manifest.json?t='+Date.now(),{cache:'no-store'});
       if(!r.ok) throw new Error('manifest.json → HTTP '+r.status);
       let j; try{ j=await r.json(); }
       catch(e){ throw new Error('manifest.json 不是合法 JSON（上传损坏）'); }
       MANIFEST=j.songs; await loadSong(0);
       pb.disabled=false; pb.textContent='开始演奏';
+      if(j.ver && j.ver!==VER){                       /* 线上有新版但本地是缓存的旧页面 */
+        const b=document.getElementById('updbar');
+        b.textContent='有新版本 '+j.ver+'（当前 '+VER+'）· 点此更新';
+        b.style.display='block';
+        b.onclick=()=>location.replace(location.pathname+'?v='+encodeURIComponent(j.ver));
+      }
     }catch(err){
       pb.textContent='无法载入歌曲';
       document.getElementById('fragline').innerHTML=
