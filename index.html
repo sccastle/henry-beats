@@ -99,6 +99,14 @@
       <div class="row"><b>下落速度</b><input id="r-spd" type="range" min="70" max="170" value="100"><span class="val" id="v-spd">1.0×</span></div>
       <div class="row"><b>判定偏移</b><input id="r-off" type="range" min="-250" max="250" value="0"><span class="val" id="v-off">0ms</span></div>
     </div>
+    <div style="border:1px solid var(--line);padding:11px 16px;max-width:540px;width:100%">
+      <div style="font-size:12.5px;color:var(--ink);margin-bottom:7px">离线缓存</div>
+      <div class="sub" id="cachetxt" style="margin-bottom:8px">检查中…</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn g" id="dl-all">把全部歌曲存到本地</button>
+        <button class="btn g" id="dl-clear">清除缓存</button>
+      </div>
+    </div>
     <p class="sub">判定偏移：如果总觉得音乐比手慢半拍，把它往右调。<br>
       游戏里每次判定都会显示提前/延迟毫秒数，照着调到接近 0 就对了。</p>
     <button class="btn g" id="set-back">返回</button>
@@ -165,7 +173,8 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.6.0';
+const VER='V0.7.0';
+const CACHE_NAME='jhb-'+VER;
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
 let CHARTS=null, SONG=null, MANIFEST=[], curIdx=0;
@@ -953,6 +962,62 @@ document.getElementById('r-home').onclick=()=>{ S=null; scr('home'); };
 document.getElementById('verline').textContent=VER;
 document.getElementById('verline2').textContent=VER;
 document.title='JUST HENRY & BEATS '+VER;
+/* ---------- Service Worker：离线缓存 + 明确的更新提示 ---------- */
+function showUpd(txt,fn){
+  const b=document.getElementById('updbar');
+  b.textContent=txt; b.style.display='block'; b.onclick=fn;
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing; if(!nw) return;
+      nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed' && navigator.serviceWorker.controller)
+          showUpd('有新版本 · 点此更新',()=>nw.postMessage('SKIP_WAITING'));
+      });
+    });
+    if(reg.waiting) showUpd('有新版本 · 点此更新',()=>reg.waiting.postMessage('SKIP_WAITING'));
+  }).catch(()=>{});
+  let done=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(done) return; done=true; location.reload();
+  });
+}
+async function cacheInfo(){
+  const el=document.getElementById('cachetxt');
+  if(!('caches' in window)){ el.textContent='这个浏览器不支持离线缓存'; return; }
+  try{
+    const c=await caches.open(CACHE_NAME), ks=await c.keys();
+    const n=ks.filter(r=>r.url.endsWith('.m4a')).length;
+    const tot=MANIFEST.length||'?';
+    el.innerHTML=n>=tot&&tot!=='?'
+      ? '<b style="color:var(--acc)">全部 '+tot+' 首已存到本地，断网也能玩</b>'
+      : n+' / '+tot+' 首已离线　·　存到本地后打开就不用等下载';
+  }catch(e){ el.textContent='缓存状态读取失败'; }
+}
+async function precacheAll(){
+  const btn=document.getElementById('dl-all'), el=document.getElementById('cachetxt');
+  btn.disabled=true;
+  try{
+    for(let i=0;i<MANIFEST.length;i++){
+      el.textContent='下载 '+(i+1)+'/'+MANIFEST.length+'：'+MANIFEST[i].title+' …';
+      const d=await (await fetch(MANIFEST[i].chart,{cache:'no-cache'})).json();
+      await fetch(d.audio);          /* Service Worker 会顺手存下来 */
+    }
+  }catch(e){ el.textContent='下载中断：'+(e.message||e); btn.disabled=false; return; }
+  btn.disabled=false; cacheInfo();
+}
+async function clearCache(){
+  try{
+    const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k)));
+    const reg=await navigator.serviceWorker.getRegistration(); if(reg) await reg.unregister();
+  }catch(e){}
+  location.reload();
+}
+document.getElementById('dl-all').onclick=precacheAll;
+document.getElementById('dl-clear').onclick=clearCache;
+document.getElementById('b-set').addEventListener('click',cacheInfo);
+
 loadSave(); cols(); resize(); drawLogo(); fragLine();
 requestAnimationFrame(frame);
 const pb=document.getElementById('b-play');
