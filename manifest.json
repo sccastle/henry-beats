@@ -12,6 +12,12 @@
    "title": "Corrupted",
    "artist": "Danimal Cannon",
    "chart": "corrupted.json"
+  },
+  {
+   "id": "atychimania",
+   "title": "ATYCHIMANIA",
+   "artist": "imAlter & Gavin Pierce",
+   "chart": "atychimania.json"
   }
  ]
 }
