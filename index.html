@@ -65,6 +65,7 @@
   
   <div class="scr on" id="home">
     <canvas id="logo" width="520" height="130" style="width:390px;height:97px"></canvas>
+    <img id="hidle" alt="" style="image-rendering:pixelated;height:112px;display:none;margin:-6px 0 -4px">
     <div style="display:flex;flex-direction:column;gap:9px;margin-top:4px">
       <button class="btn" id="b-play" disabled>载入中…</button>
       <button class="btn g" id="b-songs">歌曲选择</button>
@@ -164,7 +165,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.4.3';
+const VER='V0.5.0';
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
 let CHARTS=null, SONG=null, MANIFEST=[], curIdx=0;
@@ -185,9 +186,10 @@ function loadSave(){ try{ const s=localStorage.getItem('jhb_save');
 function putSave(){ try{ localStorage.setItem('jhb_save',JSON.stringify(SAVE)); }catch(e){} }
 
 /* ===================== 布局 ===================== */
-const VW=640, VH=360;
+const VW=640, VH=432;
 let FIELD_W=480, FIELD_X=(VW-FIELD_W)/2;
-const TOP=44, JUDGE=214, GROUND=286, BTN_Y=292, BTN_H=60;
+const TOP=48, JUDGE=252, GROUND=356, BTN_Y=364, BTN_H=62;
+const RUN_X0=58, RUN_X1=468;
 function setField(lanes){ FIELD_W = lanes===2?360:480; FIELD_X=(VW-FIELD_W)/2; }
 const NH=20;                                        // 音符高度（底边对线的关键：所有音符等高）
 
@@ -298,68 +300,44 @@ function hue(h,d){
   return 'hsl('+((H+d)%360)+','+(s*100).toFixed(1)+'%,'+(l*100).toFixed(1)+'%)';
 }
 
-/* ===================== Henry：分部件像素角色（配色取自参考图） ===================== */
-const PAL={
-  H:'#1a1a1a',   // 头发
-  F:'#df975b',   // 皮肤
-  f:'#c47f45',   // 皮肤暗部
-  G:'#0d1215',   // 墨镜
-  g:'#3d4a52',   // 墨镜高光
-  B:'#bf8e4f',   // 卫衣
-  b:'#a5773f',   // 卫衣暗部
-  C:'#f3e2c9',   // 云朵
-  Y:'#cbe458',   // 徽章
-  P:'#a8723c',   // 裤子
-  p:'#8e5f30'    // 裤子暗部
-};
-/* 躯干：22×26，无手臂（手臂是可换姿势的独立部件） */
-const BODY=[
-'.......HHHHHHHH.......',
-'......HHHHHHHHHH......',
-'.....HHHHHHHHHHHH.....',
-'.....HHHHHHHHHHHH.....',
-'.....HHHHHHHHHHHH.....',
-'.....HFFFFFFFFFFH.....',
-'.....GGGGGGGGGGGG.....',
-'.....GgGGGGGGGGGG.....',
-'.....HFFFFFFFFFFH.....',
-'......FFFFFFFFFF......',
-'.......FFFFFFFF.......',
-'........FfffFF........',
-'......BBBBBBBBBB......',
-'.....BBBBBBBBBBBB.....',
-'.....BBYBBBBBBBBB.....',
-'.....BBBBBBBBCCBB.....',
-'.....BBBBBBBCCCCB.....',
-'.....BBBBBBBBCCBB.....',
-'.....BBBBBBBBBBBB.....',
-'.....BBBBBBBBBBBB.....',
-'......bBBBBBBBBb......',
-'......PPPPPPPPPP......',
-'......PPPp..pPPP......',
-'......PPPP..PPPP......',
-'......PPPP..PPPP......',
-'.......FF....FF.......'];
-const BW=22, BH=26, PU=2;      // 22×26 格，每格 2px -> 44×52
+/* ===================== Henry：精灵图 + 代码动画 ===================== */
+const IMG={};
+function loadImg(src){
+  return new Promise((res,rej)=>{ const i=new Image();
+    i.onload=()=>res(i); i.onerror=()=>rej(new Error(src+' 载入失败')); i.src=src; });
+}
+const HSCALE=1;                       /* 精灵本身就是 64 高，1:1 画 */
+function drawHenry(cx,feet,img,bob){
+  if(!img){ g.fillStyle=C['--acc'];
+    g.fillRect(Math.round(cx-16),Math.round(feet-56+bob),32,56); return; }
+  const w=img.width, h=img.height;
+  g.drawImage(img, Math.round(cx-w/2), Math.round(feet-h+bob), w, h);
+}
 
-/* 手臂三种离散姿势（不做连续旋转，保证像素边缘干净） */
-const ARM={
-  rest:['.BB...','.BB...','.BB...','.BB...','.BB...','.FF...'],
-  out: ['BBBBFF','BBBBFF','......','......','......','......'],
-  up:  ['....FF','BBBBFF','BBBB..','......','......','......']
-};
-const AW=6, AH=6;
+/* ===================== 武器分级 ===================== */
+const WEAPON=[
+  {c:0,  n:'手枪',   len:13,h:5, size:5,  cnt:1, spread:0,  spd:380, pierce:1, rate:1},
+  {c:5,  n:'双管枪', len:15,h:7, size:6,  cnt:1, spread:0,  spd:420, pierce:1, rate:1},
+  {c:12, n:'散弹枪', len:16,h:9, size:6,  cnt:3, spread:11, spd:440, pierce:1, rate:1},
+  {c:25, n:'机关枪', len:20,h:7, size:5,  cnt:2, spread:5,  spd:560, pierce:2, rate:1},
+  {c:40, n:'激光炮', len:22,h:10,size:34, cnt:1, spread:0,  spd:760, pierce:4, rate:1, beam:1},
+  {c:60, n:'火箭筒', len:26,h:12,size:16, cnt:1, spread:0,  spd:360, pierce:9, rate:1, boom:1}
+];
+function tierIdx(combo){ let k=0; for(let i=0;i<WEAPON.length;i++) if(combo>=WEAPON[i].c) k=i; return k; }
+/* 枪身用代码画，随连击实时换形状 */
+function drawGun(x,y,ti,rec){
+  const W=WEAPON[ti], L=W.len, H=W.h, bx=Math.round(x-rec), by=Math.round(y-H/2);
+  g.fillStyle='#3f4654'; g.fillRect(bx-5,by+H-2,5,6);            /* 握把 */
+  g.fillStyle=['#8d95a6','#8d95a6','#9a8d6f','#7f8a9c','#9fb0d6','#c2a0d6'][ti];
+  g.fillRect(bx,by,L,H);
+  g.fillStyle='#d9dee8'; g.fillRect(bx,by,L,2);
+  if(ti>=2){ g.fillStyle='#3f4654'; g.fillRect(bx+3,by+H,4,3); } /* 前握把 */
+  if(ti>=4){ g.fillStyle='#d9c489'; g.fillRect(bx+L-3,by-2,3,H+4); }
+  if(ti===5){ g.fillStyle='#d69f9f'; g.fillRect(bx+2,by-3,6,3); }
+  return bx+L;
+}
 
-/* 两把玩具枪（取自参考图配色） */
-const GUN={
-  blue:{px:['..MMMMMO','.MMMMMMO','.MMMMMMM','..DD....','..DD....'],
-        c:{M:'#4091cb',O:'#e07a3a',D:'#2b3038'}},
-  green:{px:['..MMMMMO','.MMMMMMO','.MMMMMMM','..DD....','..DD....'],
-        c:{M:'#4d7a2e',O:'#e07a3a',D:'#171818'}}
-};
-const GW=8, GH=5;
-
-/* 杂兵：三种，配色刻意比音符暗一档，不抢注意力 */
+/* ===================== 杂兵 ===================== */
 const MOB={
   slime:['..SSSS..','.SSSSSS.','SSEESEES','SSSSSSSS','SSSSSSSS','.SSSSSS.'],
   bat:  ['W......W','WW.EE.WW','WWWEEWWW','.WWWWWW.','..WWWW..','...WW...'],
@@ -367,42 +345,16 @@ const MOB={
 };
 const MOBC={S:'#5f7a6a',W:'#6a5f7a',C:'#7a6f5f',E:'#2a2e36'};
 const MW=8, MH=6, MU=3;
-
-/* Combo 分级：按 Easy 94 音符标定，让他一首歌里能反复够到上限 */
-const TIERS=[
-  {c:0,  n:'单发',   size:4,  count:1, pierce:1, speed:340},
-  {c:5,  n:'重弹',   size:6,  count:1, pierce:1, speed:380},
-  {c:12, n:'双发',   size:6,  count:2, pierce:1, speed:400},
-  {c:25, n:'光束',   size:10, count:1, pierce:2, speed:520},
-  {c:40, n:'巨弹',   size:14, count:1, pierce:3, speed:460},
-  {c:60, n:'双枪',   size:14, count:1, pierce:3, speed:500, both:true}
-];
-function tierOf(combo){ let t=TIERS[0]; for(const x of TIERS) if(combo>=x.c) t=x; return t; }
-const RING=[15,35,60];         // 连击里程碑外框（原来是 50/100/200）
-
 function drawMap(map,ox,oy,u,pal,flip){
-  for(let r=0;r<map.length;r++){
-    const row=map[r];
+  for(let r=0;r<map.length;r++){ const row=map[r];
     for(let c=0;c<row.length;c++){
       const ch=row[c]; if(ch==='.') continue;
       const col=pal[ch]; if(!col) continue;
-      const cc=flip? (row.length-1-c) : c;
-      g.fillStyle=col; g.fillRect(ox+cc*u, oy+r*u, u, u);
+      g.fillStyle=col; g.fillRect(ox+(flip?row.length-1-c:c)*u, oy+r*u, u, u);
     }
   }
 }
-function drawHenry(cx,feet,bob,poseL,poseR,rl,rr){
-  const ox=Math.round(cx-BW*PU/2), oy=Math.round(feet-BH*PU+bob);
-  const ay=oy+16*PU;
-  /* 手臂在躯干后面画，枪在前面 */
-  drawMap(ARM[poseR],ox+BW*PU-4+rr,ay,PU,PAL,false);
-  drawMap(ARM[poseL],ox+4-AW*PU-rl,ay,PU,PAL,true);
-  drawMap(BODY,ox,oy,PU,PAL,false);
-  drawMap(GUN.green.px, ox+BW*PU-4+AW*PU+rr, ay, PU, GUN.green.c, false);
-  drawMap(GUN.blue.px,  ox+4-AW*PU-GW*PU-rl, ay, PU, GUN.blue.c,  true);
-  return {y:ay+2*PU, lx:ox+4-AW*PU-GW*PU-rl, rx:ox+BW*PU-4+AW*PU+GW*PU+rr};
-}
-
+const RING=[15,35,60];
 /* ===================== 音符（Beat Crystal） ===================== */
 const CRY=[0.30,0.55,0.80,1,1,1,1,1,1,1];   // 尖顶平底：底边落线，视觉与判定一致
 function drawCrystal(cx,yBottom,w,col,alpha){
@@ -432,7 +384,8 @@ function newGame(){
     notes:ch.notes.map(n=>({t:AOFF+n.b*SPB, l:n.l, k:n.k, st:0})),
     head:0, st:0, score:0, combo:0, best:0, energy:0,
     cnt:[0,0,0,0], fx:[], lit:[], swing:0, swingG:0,
-    mobs:[], bullets:[], spawnT:0.5, recL:0, recR:0, kills:0,
+    mobs:[], bullets:[], spawnT:0.6, rec:0, kills:0,
+    hx:RUN_X0, tier:0, tierPop:0, tierName:'', dust:[],
     t0:0, songT:-999, running:false,
     label:'', labelT:0, lastSec:-1, jt:'', jms:0, jTimer:0, jGrade:0
   };
@@ -453,7 +406,7 @@ function judge(lane){
     S.energy = Math.min(100, S.energy + (gr===0?1.4:gr===1?1.0:0.6));
     S.jt=GRADE[gr]; S.jms=Math.round(-dt*1000); S.jTimer=0.62; S.jGrade=gr;
     S.swing=1; S.swingG=gr;
-    fire(sideOf(lane));
+    fire(lane);
     A.hit(n.k,gr);
     shatter(laneX(lane)+laneW()/2, JUDGE, C[NCOL[n.k]], gr);
     return;
@@ -467,23 +420,27 @@ function shatter(x,y,col,gr){
   }
   if(S.fx.length>180) S.fx.splice(0,S.fx.length-180);
 }
-const GUNL=VW/2-46, GUNR=VW/2+46, BY=GROUND-14;
-function sideOf(lane){ return lane < S.lanes/2 ? -1 : 1; }
-function fire(side){
-  const T=tierOf(S.combo);
-  (T.both?[-1,1]:[side]).forEach(sd=>{
-    for(let i=0;i<T.count;i++)
-      S.bullets.push({x: sd<0?GUNL:GUNR, y: BY+(T.count>1? i*8-4 : 0),
-        vx: sd*T.speed, s:T.size, pierce:T.pierce, life:1.5,
-        c: T.size>=10?C['--c2']:C['--c3']});
-    if(sd<0) S.recL=1; else S.recR=1;
-  });
-  if(S.bullets.length>60) S.bullets.splice(0,S.bullets.length-60);
+/* 4 条轨道 = 4 个弹道高度，敲哪个键子弹从哪一层飞出去 */
+function laneY(l){
+  const n=S.lanes, top=GROUND-58, bot=GROUND-8;
+  return Math.round(n===1?bot:top+(bot-top)*(l/(n-1)));
 }
-function spawnMob(sd){
-  if(S.mobs.filter(m=>m.side===sd).length>=6) return;
-  S.mobs.push({side:sd, x: sd<0?-24:VW+24, bob:Math.random()*6,
-    t:['slime','bat','cube'][Math.floor(Math.random()*3)]});
+function fire(lane){
+  const ti=S.tier, W=WEAPON[ti], y=laneY(lane);
+  for(let i=0;i<W.cnt;i++){
+    const off=W.cnt>1 ? (i-(W.cnt-1)/2)*W.spread : 0;
+    S.bullets.push({x:S.muzzle, y:y+off, vx:W.spd, s:W.size,
+      h: W.beam?7:(W.boom?W.size:W.size), beam:!!W.beam, boom:!!W.boom,
+      pierce:W.pierce, life:2.2, c: ti>=4?C['--c2']:(ti>=2?C['--c3']:C['--c0'])});
+  }
+  S.rec=1;
+  if(S.bullets.length>70) S.bullets.splice(0,S.bullets.length-70);
+}
+const MOBY={slime:GROUND-9, cube:GROUND-34, bat:GROUND-56};
+function spawnMob(){
+  if(S.mobs.length>=9) return;
+  const t=['slime','bat','cube'][Math.floor(Math.random()*3)];
+  S.mobs.push({x:VW+26, y:MOBY[t], bob:Math.random()*6, t:t});
 }
 function tap(lane){
   if(!S||!S.running) return;
@@ -540,29 +497,47 @@ function step(dt){
   S.swing=Math.max(0,S.swing-dt*(S.swingG===0?4.6:6));
   S.jTimer=Math.max(0,S.jTimer-dt);
   S.labelT=Math.max(0,S.labelT-dt);
-  S.recL=Math.max(0,S.recL-dt*7); S.recR=Math.max(0,S.recR-dt*7);
+  S.rec=Math.max(0,S.rec-dt*8);
+  S.tierPop=Math.max(0,S.tierPop-dt);
+  /* 武器随连击升降级 */
+  const ti=tierIdx(S.combo);
+  if(ti>S.tier){ S.tierName=WEAPON[ti].n; S.tierPop=1.5; A.ding(); }
+  S.tier=ti;
+  /* Henry 位置 = 歌曲进度 */
+  const pr=clamp((S.songT-IN)/(OUT-IN),0,1);
+  S.hx=RUN_X0+(RUN_X1-RUN_X0)*pr;
+  /* 跑步扬尘 */
+  if(S.songT>IN){
+    S.dustT=(S.dustT||0)-dt;
+    if(S.dustT<=0){ S.dustT=0.14;
+      S.dust.push({x:S.hx-14+Math.random()*8,y:GROUND-2,vx:-18-Math.random()*20,life:1}); }
+  }
+  for(let i=S.dust.length-1;i>=0;i--){ const d=S.dust[i];
+    d.x+=d.vx*dt; d.life-=dt*1.8; if(d.life<=0) S.dust.splice(i,1); }
+  /* 敌人从右边来，走到 Henry 前方排队 */
   S.spawnT-=dt;
-  if(S.spawnT<=0){ S.spawnT=1.0+Math.random()*0.7; spawnMob(Math.random()<0.5?-1:1); }
-  [-1,1].forEach(sd=>{
-    const line=VW/2+sd*86;
-    S.mobs.filter(m=>m.side===sd)
-      .sort((a,b)=> sd<0 ? b.x-a.x : a.x-b.x)
-      .forEach((m,i)=>{
-        const tg=line+sd*i*22, d=tg-m.x;
-        if(Math.abs(d)>1) m.x+=Math.sign(d)*Math.min(26*dt,Math.abs(d));
-      });
+  if(S.spawnT<=0){ S.spawnT=0.85+Math.random()*0.7; spawnMob(); }
+  S.mobs.sort((a,b)=>a.x-b.x).forEach((m,i)=>{
+    const tg=S.hx+96+i*24, d=tg-m.x;
+    if(d<-1) m.x+=Math.max(-34*dt, d);
+    else if(d>1) m.x+=Math.min(34*dt, d);
   });
+  /* 子弹 */
   for(let i=S.bullets.length-1;i>=0;i--){
     const b=S.bullets[i];
     b.x+=b.vx*dt; b.life-=dt;
-    if(b.x<-40||b.x>VW+40||b.life<=0){ S.bullets.splice(i,1); continue; }
+    if(b.x>VW+50||b.life<=0){ S.bullets.splice(i,1); continue; }
     for(let j=S.mobs.length-1;j>=0;j--){
       const m=S.mobs[j];
-      if(Math.abs(m.x-b.x) < b.s/2+MW*MU/2){
+      const hit = Math.abs(m.x-b.x) < b.s/2 + MW*MU/2
+               && Math.abs(m.y-b.y) < 26;
+      if(hit){
         S.mobs.splice(j,1); S.kills++;
-        for(let k=0;k<5;k++){
-          const a=-0.4-Math.random()*2.3, sp=40+Math.random()*90;
-          S.fx.push({x:m.x,y:GROUND-9,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,c:b.c,s:3});
+        const n=b.boom?11:5;
+        for(let k=0;k<n;k++){
+          const a=-0.35-Math.random()*2.4, sp=(b.boom?90:45)+Math.random()*(b.boom?170:90);
+          S.fx.push({x:m.x,y:m.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+                     life:1,c:b.c,s:b.boom?4:3});
         }
         if(--b.pierce<=0){ S.bullets.splice(i,1); break; }
       }
@@ -621,29 +596,57 @@ function draw(clock){
     g.fillRect(Math.round(p.x),Math.round(p.y),p.s,p.s); });
 
   /* 战斗带地面 */
-  g.fillStyle=rgba(C['--line'],0.7); g.fillRect(0,GROUND,VW,2);
-  /* 杂兵（比音符暗一档，不抢注意力） */
+  g.fillStyle=rgba(C['--line'],0.8); g.fillRect(0,GROUND,VW,3);
+  g.fillStyle=rgba(C['--line'],0.45);
+  const goff=(S.hx*1.6)%24;
+  for(let x=-24+goff;x<VW;x+=24) g.fillRect(Math.round(x),GROUND+6,10,3);
+  /* 终点线 */
+  g.fillStyle=rgba(C['--acc'],0.35);
+  for(let y=GROUND-70;y<GROUND;y+=10) g.fillRect(RUN_X1+66,y,3,6);
+  /* 扬尘 */
+  S.dust.forEach(d=>{ g.fillStyle=rgba(C['--dim'],clamp(d.life,0,1)*0.35);
+    g.fillRect(Math.round(d.x),Math.round(d.y),3,3); });
+  /* 杂兵 */
   S.mobs.forEach(m=>{
-    const bv=Math.round(Math.sin(clock*3.2+m.bob));
-    drawMap(MOB[m.t], Math.round(m.x-MW*MU/2), GROUND-MH*MU+bv, MU, MOBC, m.side>0);
+    const amp=m.t==='bat'?3:(m.t==='cube'?2:1);
+    const bv=Math.round(Math.sin(clock*3.2+m.bob)*amp);
+    drawMap(MOB[m.t], Math.round(m.x-MW*MU/2), Math.round(m.y-MH*MU/2)+bv, MU, MOBC, false);
   });
-  /* 子弹：只靠尺寸变大，不靠变亮 */
+  /* 子弹：靠形状和尺寸区分，不靠亮度 */
   S.bullets.forEach(b=>{
-    g.fillStyle=rgba(b.c,0.85);
-    g.fillRect(Math.round(b.x-b.s/2),Math.round(b.y-b.s/2),b.s,b.s);
-    g.fillStyle=rgba(b.c,0.3);
-    g.fillRect(Math.round(b.x-b.s/2-Math.sign(b.vx)*b.s),Math.round(b.y-b.s/4),b.s,Math.max(2,b.s/2));
+    g.fillStyle=rgba(b.c,0.9);
+    if(b.beam) g.fillRect(Math.round(b.x-b.s),Math.round(b.y-3),b.s,7);
+    else{
+      g.fillRect(Math.round(b.x-b.s/2),Math.round(b.y-b.s/2),b.s,b.s);
+      g.fillStyle=rgba(b.c,0.28);
+      g.fillRect(Math.round(b.x-b.s/2-b.s*1.4),Math.round(b.y-b.s/4),b.s*1.4,Math.max(2,b.s/2));
+    }
   });
-  /* Henry：站中间不动，开枪方向就是他敲的那一边 */
-  const bob=Math.round(Math.sin(clock*2.1));
-  const pL=S.recL>0.5?'up':'out', pR=S.recR>0.5?'up':'out';
-  drawHenry(VW/2, GROUND, bob, pL, pR, Math.round(S.recL*3), Math.round(S.recR*3));
-  /* 连击里程碑：静态外框，不闪不发光 */
-  const HW=BW*PU, HH=BH*PU, hx=VW/2-HW/2, hy=GROUND-HH;
+  /* 碎片 */
+  S.fx.forEach(p=>{ g.fillStyle=rgba(p.c,clamp(p.life,0,1)*0.85);
+    g.fillRect(Math.round(p.x),Math.round(p.y),p.s,p.s); });
+  /* Henry：边跑边打，位置就是进度 */
+  const bob=Math.round(Math.sin(clock*9)*2);
+  drawHenry(S.hx, GROUND, IMG.run, bob);
+  S.muzzle=drawGun(S.hx+20, GROUND-38+bob, S.tier, Math.round(S.rec*4));
+  /* 连击里程碑：静态外框 */
   if(S.best>=RING[0]){
-    g.strokeStyle=rgba(C['--acc'],0.3); g.lineWidth=2; g.strokeRect(hx-4,hy-4,HW+8,HH+8);
-    if(S.best>=RING[1]){ g.strokeStyle=rgba(C['--c2'],0.28); g.strokeRect(hx-8,hy-8,HW+16,HH+16); }
-    if(S.best>=RING[2]){ g.strokeStyle=rgba(C['--c3'],0.26); g.strokeRect(hx-12,hy-12,HW+24,HH+24); }
+    const hw=(IMG.run?IMG.run.width:46), hh=(IMG.run?IMG.run.height:64);
+    g.strokeStyle=rgba(C['--acc'],0.28); g.lineWidth=2;
+    g.strokeRect(Math.round(S.hx-hw/2)-4, GROUND-hh-4+bob, hw+8, hh+8);
+    if(S.best>=RING[1]){ g.strokeStyle=rgba(C['--c2'],0.26);
+      g.strokeRect(Math.round(S.hx-hw/2)-8, GROUND-hh-8+bob, hw+16, hh+16); }
+  }
+  /* 升级提示：文字弹出，保证变化看得见 */
+  if(S.tierPop>0){
+    const a=sstep(Math.min(S.tierPop/0.3,1)), rise=(1.5-S.tierPop)*14;
+    g.textAlign='center';
+    g.font='700 19px -apple-system,"PingFang SC",sans-serif';
+    g.fillStyle=rgba(C['--bg'],a*0.85);
+    g.fillText(S.tierName+'!',S.hx+1,GROUND-96-rise+1);
+    g.fillStyle=rgba(C['--c3'],a);
+    g.fillText(S.tierName+'!',S.hx,GROUND-96-rise);
+    g.textAlign='left';
   }
 
   /* 按钮 */
@@ -690,6 +693,7 @@ function drawHUD(bt){
   g.fillStyle=rgba(C['--acc'],0.7); g.fillRect(bx,by,bw*pr,3);
   for(let i=1;i<4;i++){ g.fillStyle=rgba(C['--dim'],0.55);
     g.fillRect(Math.round(bx+bw*((AOFF+i*(TOTB/4)*SPB-IN)/(OUT-IN))),by-3,2,9); }
+  pxText(g,WEAPON[S.tier].n,PBTN.x+PBTN.w+14,PBTN.y+30,1.6,rgba(C['--c3'],0.9),'l');
   pxText(g,VER,VW-14,VH-11,1.3,rgba(C['--dim'],0.4),'r');
   /* 节奏能量：只涨不掉 */
   const ex=VW-150, ey=JUDGE+16;
@@ -859,6 +863,12 @@ else{
       if(!r.ok) throw new Error('manifest.json → HTTP '+r.status);
       let j; try{ j=await r.json(); }
       catch(e){ throw new Error('manifest.json 不是合法 JSON（上传损坏）'); }
+      try{
+        const [r,i]=await Promise.all([loadImg('henry_run.png'),loadImg('henry_idle.png')]);
+        IMG.run=r; IMG.idle=i;
+        const el=document.getElementById('hidle');
+        el.src='henry_idle.png'; el.style.display='block';
+      }catch(e){ console.warn('精灵图缺失，仍可游玩'); }
       MANIFEST=j.songs; await loadSong(0);
       pb.disabled=false; pb.textContent='开始演奏';
       if(j.ver && j.ver!==VER){                       /* 线上有新版但本地是缓存的旧页面 */
