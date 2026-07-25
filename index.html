@@ -72,6 +72,7 @@
     </div>
     <p class="sub" id="nowsong" style="color:var(--acc)"></p>
     <p class="sub" id="fragline"></p>
+    <p style="position:absolute;right:12px;bottom:10px;margin:0;font-size:11px;color:#5c6474" id="verline"></p>
   </div>
 
   <div class="scr" id="songs">
@@ -102,7 +103,7 @@
   </div>
 
   <div class="scr" id="paused">
-    <p class="sub" style="font-size:17px;color:var(--ink)">已暂停</p>
+    <p class="sub" style="font-size:17px;color:var(--ink)">已暂停 <span style="font-size:11px;color:#5c6474" id="verline2"></span></p>
     <button class="btn" id="p-resume">继续演奏</button>
     <button class="btn g" id="p-restart">从头重来</button>
     <button class="btn g" id="p-quit">回到主菜单</button>
@@ -162,6 +163,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
+const VER='V0.4.3';
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
 let CHARTS=null, SONG=null, MANIFEST=[], curIdx=0;
@@ -687,6 +689,7 @@ function drawHUD(bt){
   g.fillStyle=rgba(C['--acc'],0.7); g.fillRect(bx,by,bw*pr,3);
   for(let i=1;i<4;i++){ g.fillStyle=rgba(C['--dim'],0.55);
     g.fillRect(Math.round(bx+bw*((AOFF+i*(TOTB/4)*SPB-IN)/(OUT-IN))),by-3,2,9); }
+  pxText(g,VER,VW-14,VH-11,1.3,rgba(C['--dim'],0.4),'r');
   /* 节奏能量：只涨不掉 */
   const ex=VW-150, ey=JUDGE+16;
   g.fillStyle=C['--line']; g.fillRect(ex,ey,130,8);
@@ -841,6 +844,9 @@ document.getElementById('p-quit').onclick=()=>{ stopSrc(); S=null; scr('home'); 
 document.getElementById('r-again').onclick=startGame;
 document.getElementById('r-home').onclick=()=>{ S=null; scr('home'); };
 
+document.getElementById('verline').textContent=VER;
+document.getElementById('verline2').textContent=VER;
+document.title='JUST HENRY & BEATS '+VER;
 loadSave(); cols(); resize(); drawLogo(); fragLine();
 requestAnimationFrame(frame);
 const pb=document.getElementById('b-play');
