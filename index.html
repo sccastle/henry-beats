@@ -165,7 +165,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.5.0';
+const VER='V0.6.0';
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
 let CHARTS=null, SONG=null, MANIFEST=[], curIdx=0;
@@ -247,6 +247,23 @@ A.ding=function(){
 };
 let BUF=null;
 function decode(ab){ return new Promise((res,rej)=>A.ctx.decodeAudioData(ab,res,rej)); }
+async function fetchBuf(u,onp){
+  const ac=new AbortController(), to=setTimeout(()=>ac.abort(),40000);
+  let r;
+  try{ r=await fetch(u,{cache:'no-cache',signal:ac.signal}); }
+  catch(e){ clearTimeout(to);
+    throw new Error(e.name==='AbortError'?u+' 下载超时（网络太慢或连不上）':u+' 取不到'); }
+  if(!r.ok){ clearTimeout(to); throw new Error(u+' → HTTP '+r.status); }
+  const total=+(r.headers.get('content-length')||0);
+  if(!r.body||!total){ const b=await r.arrayBuffer(); clearTimeout(to); return b; }
+  const rd=r.body.getReader(), parts=[]; let got=0;
+  for(;;){ const {done,value}=await rd.read(); if(done) break;
+    parts.push(value); got+=value.length; onp&&onp(got,total); }
+  clearTimeout(to);
+  const out=new Uint8Array(got); let o=0;
+  for(const c of parts){ out.set(c,o); o+=c.length; }
+  return out.buffer;
+}
 async function grab(u){
   let r; try{ r=await fetch(u,{cache:'no-cache'}); }
   catch(e){ throw new Error(u+' 取不到（可能不是通过网址打开的）'); }
@@ -260,7 +277,10 @@ async function loadSong(i){
   try{ doc=await (await grab(m.chart)).json(); }
   catch(e){ throw new Error(e.message.indexOf('HTTP')>0||e.message.indexOf('取不到')>0
     ? e.message : m.chart+' 内容不是合法 JSON（文件可能上传损坏）'); }
-  const ab=await (await grab(doc.audio)).arrayBuffer();
+  const ab=await fetchBuf(doc.audio,(gg,t)=>{
+    const el=document.getElementById('b-play');
+    if(el) el.textContent='载入 '+Math.round(gg/t*100)+'%';
+  });
   if(ab.byteLength<200000) throw new Error(doc.audio+' 只有 '+Math.round(ab.byteLength/1024)+' KB，明显偏小，上传损坏了');
   try{ BUF=await decode(ab); }
   catch(e){ throw new Error(doc.audio+' 无法解码（文件损坏或格式不对）'); }
@@ -315,28 +335,37 @@ function drawHenry(cx,feet,img,bob){
 }
 
 /* ===================== 武器分级 ===================== */
+const GUNPX={
+ pistol:['....MMMMMO..','...MMMMMMO..','...MMMMMM...','...GGG......','...GGG......','...GG.......','............'],
+ twin:  ['..MMMMMMMO..','..MMMMMMMO..','..DDDDDDD...','..MMMMMMMO..','..MMMMMMMO..','..GGG.......','..GGG.......'],
+ shot:  ['.....MMMM.OO','..MMMMMMMMOO','..MMMMMMMMOO','.....MMMM.OO','...GG.DD....','...GG.......','............'],
+ mg:    ['..MMMMMMMMMO','.MMMMMMMMMMO','.MMMMMMMMMM.','..GG..DDD...','..GG..DDD...','......DDD...','............'],
+ laser: ['...MDMDM.CCC','..MMMMMMMCCC','..MMMMMMMCCC','...MDMDM.CCC','...GG.......','...GG.......','............'],
+ rocket:['.MMMMMMMMMWW','MMMMMMMMMMWW','MMMMMMMMMMWW','.MMMMMMMMMWW','..GG..DD....','..GG........','............']
+};
+const GUNPAL={
+ pistol:{M:'#8d95a6',O:'#d9c489',G:'#3f4654',D:'#3f4654'},
+ twin:  {M:'#93a0b3',O:'#d9c489',G:'#3f4654',D:'#3f4654'},
+ shot:  {M:'#9a8d6f',O:'#d9c489',G:'#4a3f2e',D:'#3f4654'},
+ mg:    {M:'#7f8a9c',O:'#d9c489',G:'#333a46',D:'#2a2e36'},
+ laser: {M:'#8f9bb5',O:'#d9c489',G:'#3f4654',D:'#b79ad6',C:'#b79ad6'},
+ rocket:{M:'#7a6f5f',O:'#d9c489',G:'#3a332a',D:'#2a2e36',W:'#d69f9f'}
+};
+const GU=2, GPW=12, GPH=7;
 const WEAPON=[
-  {c:0,  n:'手枪',   len:13,h:5, size:5,  cnt:1, spread:0,  spd:380, pierce:1, rate:1},
-  {c:5,  n:'双管枪', len:15,h:7, size:6,  cnt:1, spread:0,  spd:420, pierce:1, rate:1},
-  {c:12, n:'散弹枪', len:16,h:9, size:6,  cnt:3, spread:11, spd:440, pierce:1, rate:1},
-  {c:25, n:'机关枪', len:20,h:7, size:5,  cnt:2, spread:5,  spd:560, pierce:2, rate:1},
-  {c:40, n:'激光炮', len:22,h:10,size:34, cnt:1, spread:0,  spd:760, pierce:4, rate:1, beam:1},
-  {c:60, n:'火箭筒', len:26,h:12,size:16, cnt:1, spread:0,  spd:360, pierce:9, rate:1, boom:1}
+ {c:0,  n:'手枪',   g:'pistol', kind:'shot',  cnt:1, spread:0,  size:7,  spd:430, pierce:1, tr:1.3},
+ {c:5,  n:'双管枪', g:'twin',   kind:'shot',  cnt:2, spread:10, size:8,  spd:460, pierce:1, tr:1.5},
+ {c:12, n:'散弹枪', g:'shot',   kind:'shot',  cnt:5, spread:24, size:9,  spd:490, pierce:1, tr:1.6},
+ {c:25, n:'机关枪', g:'mg',     kind:'shot',  cnt:3, spread:7,  size:8,  spd:660, pierce:2, tr:2.6, stag:16},
+ {c:40, n:'激光炮', g:'laser',  kind:'beam',  cnt:1, spread:0,  size:16, spd:0,   pierce:99},
+ {c:60, n:'火箭筒', g:'rocket', kind:'rocket',cnt:1, spread:0,  size:20, spd:390, pierce:1, boom:64, tr:1.8}
 ];
 function tierIdx(combo){ let k=0; for(let i=0;i<WEAPON.length;i++) if(combo>=WEAPON[i].c) k=i; return k; }
-/* 枪身用代码画，随连击实时换形状 */
 function drawGun(x,y,ti,rec){
-  const W=WEAPON[ti], L=W.len, H=W.h, bx=Math.round(x-rec), by=Math.round(y-H/2);
-  g.fillStyle='#3f4654'; g.fillRect(bx-5,by+H-2,5,6);            /* 握把 */
-  g.fillStyle=['#8d95a6','#8d95a6','#9a8d6f','#7f8a9c','#9fb0d6','#c2a0d6'][ti];
-  g.fillRect(bx,by,L,H);
-  g.fillStyle='#d9dee8'; g.fillRect(bx,by,L,2);
-  if(ti>=2){ g.fillStyle='#3f4654'; g.fillRect(bx+3,by+H,4,3); } /* 前握把 */
-  if(ti>=4){ g.fillStyle='#d9c489'; g.fillRect(bx+L-3,by-2,3,H+4); }
-  if(ti===5){ g.fillStyle='#d69f9f'; g.fillRect(bx+2,by-3,6,3); }
-  return bx+L;
+  const W=WEAPON[ti], ox=Math.round(x-rec), oy=Math.round(y-GPH*GU/2);
+  drawMap(GUNPX[W.g], ox, oy, GU, GUNPAL[W.g], false);
+  return ox+GPW*GU;
 }
-
 /* ===================== 杂兵 ===================== */
 const MOB={
   slime:['..SSSS..','.SSSSSS.','SSEESEES','SSSSSSSS','SSSSSSSS','.SSSSSS.'],
@@ -384,7 +413,7 @@ function newGame(){
     notes:ch.notes.map(n=>({t:AOFF+n.b*SPB, l:n.l, k:n.k, st:0})),
     head:0, st:0, score:0, combo:0, best:0, energy:0,
     cnt:[0,0,0,0], fx:[], lit:[], swing:0, swingG:0,
-    mobs:[], bullets:[], spawnT:0.6, rec:0, kills:0,
+    mobs:[], bullets:[], booms:[], flash:null, spawnT:0.6, rec:0, kills:0,
     hx:RUN_X0, tier:0, tierPop:0, tierName:'', dust:[],
     t0:0, songT:-999, running:false,
     label:'', labelT:0, lastSec:-1, jt:'', jms:0, jTimer:0, jGrade:0
@@ -427,16 +456,29 @@ function laneY(l){
 }
 function fire(lane){
   const ti=S.tier, W=WEAPON[ti], y=laneY(lane);
-  for(let i=0;i<W.cnt;i++){
-    const off=W.cnt>1 ? (i-(W.cnt-1)/2)*W.spread : 0;
-    S.bullets.push({x:S.muzzle, y:y+off, vx:W.spd, s:W.size,
-      h: W.beam?7:(W.boom?W.size:W.size), beam:!!W.beam, boom:!!W.boom,
-      pierce:W.pierce, life:2.2, c: ti>=4?C['--c2']:(ti>=2?C['--c3']:C['--c0'])});
+  const col=[C['--c0'],C['--c0'],C['--c3'],C['--c3'],C['--c2'],'#d69f9f'][ti];
+  S.flash={x:S.muzzle,y:y,t:1,r:7+ti*5};
+  if(W.kind==='beam'){
+    S.bullets.push({beam:1,x:S.muzzle,y:y,s:W.size,life:0.20,c:C['--c2'],pierce:99});
+  }else if(W.kind==='rocket'){
+    S.bullets.push({x:S.muzzle,y:y,vx:W.spd,s:W.size,life:2.4,c:col,pierce:1,boom:W.boom,tr:W.tr});
+  }else{
+    for(let i=0;i<W.cnt;i++){
+      const off=W.cnt>1?(i-(W.cnt-1)/2)*W.spread:0;
+      S.bullets.push({x:S.muzzle-(W.stag?i*W.stag:0),y:y+off,vx:W.spd,
+        s:W.size,life:2.2,c:col,pierce:W.pierce,tr:W.tr});
+    }
   }
   S.rec=1;
-  if(S.bullets.length>70) S.bullets.splice(0,S.bullets.length-70);
+  if(S.bullets.length>90) S.bullets.splice(0,S.bullets.length-90);
 }
-const MOBY={slime:GROUND-9, cube:GROUND-34, bat:GROUND-56};
+function boom(x,y,r,c){
+  S.booms.push({x:x,y:y,r:0,max:r,life:1,c:c});
+  for(let k=0;k<18;k++){
+    const a=Math.random()*Math.PI*2, sp=70+Math.random()*190;
+    S.fx.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*0.6,life:1,c:c,s:4});
+  }
+}
 function spawnMob(){
   if(S.mobs.length>=9) return;
   const t=['slime','bat','cube'][Math.floor(Math.random()*3)];
@@ -525,24 +567,41 @@ function step(dt){
   /* 子弹 */
   for(let i=S.bullets.length-1;i>=0;i--){
     const b=S.bullets[i];
-    b.x+=b.vx*dt; b.life-=dt;
-    if(b.x>VW+50||b.life<=0){ S.bullets.splice(i,1); continue; }
+    b.life-=dt;
+    if(!b.beam) b.x+=b.vx*dt;
+    if(b.x>VW+60||b.life<=0){ S.bullets.splice(i,1); continue; }
     for(let j=S.mobs.length-1;j>=0;j--){
       const m=S.mobs[j];
-      const hit = Math.abs(m.x-b.x) < b.s/2 + MW*MU/2
-               && Math.abs(m.y-b.y) < 26;
-      if(hit){
-        S.mobs.splice(j,1); S.kills++;
-        const n=b.boom?11:5;
-        for(let k=0;k<n;k++){
-          const a=-0.35-Math.random()*2.4, sp=(b.boom?90:45)+Math.random()*(b.boom?170:90);
-          S.fx.push({x:m.x,y:m.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
-                     life:1,c:b.c,s:b.boom?4:3});
-        }
-        if(--b.pierce<=0){ S.bullets.splice(i,1); break; }
+      const hit = b.beam ? (m.x>b.x && Math.abs(m.y-b.y)<b.s/2+10)
+                         : (Math.abs(m.x-b.x)<b.s/2+MW*MU/2 && Math.abs(m.y-b.y)<26);
+      if(!hit) continue;
+      const wasBoom=b.boom;
+      if(wasBoom){ boom(m.x,m.y,b.boom,b.c); S.bullets.splice(i,1); }
+      S.mobs.splice(j,1); S.kills++;
+      for(let k=0;k<6;k++){
+        const a=-0.35-Math.random()*2.4, sp=50+Math.random()*100;
+        S.fx.push({x:m.x,y:m.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,c:b.c,s:3});
       }
+      if(wasBoom) break;
+      if(--b.pierce<=0){ S.bullets.splice(i,1); break; }
     }
   }
+  for(let i=S.booms.length-1;i>=0;i--){
+    const e=S.booms[i];
+    e.r+=e.max*dt*3.2; e.life-=dt*2.6;
+    for(let j=S.mobs.length-1;j>=0;j--){
+      const m=S.mobs[j];
+      if(Math.hypot(m.x-e.x,m.y-e.y)<e.r){
+        S.mobs.splice(j,1); S.kills++;
+        for(let k=0;k<5;k++){
+          const a=Math.random()*Math.PI*2, sp=60+Math.random()*120;
+          S.fx.push({x:m.x,y:m.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*0.6,life:1,c:e.c,s:3});
+        }
+      }
+    }
+    if(e.life<=0) S.booms.splice(i,1);
+  }
+  if(S.flash){ S.flash.t-=dt*9; if(S.flash.t<=0) S.flash=null; }
   for(let i=S.fx.length-1;i>=0;i--){
     const p=S.fx[i];
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=420*dt; p.life-=dt*2.3;
@@ -612,16 +671,46 @@ function draw(clock){
     const bv=Math.round(Math.sin(clock*3.2+m.bob)*amp);
     drawMap(MOB[m.t], Math.round(m.x-MW*MU/2), Math.round(m.y-MH*MU/2)+bv, MU, MOBC, false);
   });
-  /* 子弹：靠形状和尺寸区分，不靠亮度 */
+  /* 子弹：六种形态，全靠几何区分，不靠亮度 */
   S.bullets.forEach(b=>{
-    g.fillStyle=rgba(b.c,0.9);
-    if(b.beam) g.fillRect(Math.round(b.x-b.s),Math.round(b.y-3),b.s,7);
-    else{
-      g.fillRect(Math.round(b.x-b.s/2),Math.round(b.y-b.s/2),b.s,b.s);
-      g.fillStyle=rgba(b.c,0.28);
-      g.fillRect(Math.round(b.x-b.s/2-b.s*1.4),Math.round(b.y-b.s/4),b.s*1.4,Math.max(2,b.s/2));
+    if(b.beam){
+      const a=clamp(b.life/0.20,0,1);
+      g.fillStyle=rgba(b.c,0.28*a); g.fillRect(b.x,Math.round(b.y-b.s/2),VW-b.x,b.s);
+      g.fillStyle=rgba(b.c,0.85*a); g.fillRect(b.x,Math.round(b.y-3),VW-b.x,6);
+      g.fillStyle=rgba(b.c,a);
+      for(let x=b.x;x<VW;x+=18) g.fillRect(Math.round(x),Math.round(b.y-b.s/2-3),4,b.s+6);
+      return;
+    }
+    const seg=Math.round(3*(b.tr||1));
+    for(let k=seg;k>0;k--){
+      const sz=Math.max(2,Math.round(b.s*(1-k/(seg+1))));
+      g.fillStyle=rgba(b.c,0.07+0.13*(1-k/(seg+1)));
+      g.fillRect(Math.round(b.x-b.s/2-k*b.s*0.75),Math.round(b.y-sz/2),Math.round(b.s*0.75),sz);
+    }
+    g.fillStyle=rgba(b.c,0.95);
+    g.fillRect(Math.round(b.x-b.s/2),Math.round(b.y-b.s/2),b.s,b.s);
+    if(b.boom){
+      g.fillStyle=rgba(C['--c3'],0.9);
+      g.fillRect(Math.round(b.x-b.s/2-6),Math.round(b.y-b.s/2-4),6,4);
+      g.fillRect(Math.round(b.x-b.s/2-6),Math.round(b.y+b.s/2),6,4);
+      g.fillStyle=rgba(C['--c3'],0.55);
+      g.fillRect(Math.round(b.x-b.s/2-14),Math.round(b.y-3),8,6);
     }
   });
+  S.booms.forEach(e=>{
+    const a=clamp(e.life,0,1);
+    g.strokeStyle=rgba(e.c,a*0.8); g.lineWidth=5;
+    g.beginPath(); g.arc(e.x,e.y,e.r,0,Math.PI*2); g.stroke();
+    g.strokeStyle=rgba(e.c,a*0.35); g.lineWidth=3;
+    g.beginPath(); g.arc(e.x,e.y,e.r*0.62,0,Math.PI*2); g.stroke();
+  });
+  if(S.flash){
+    const f=S.flash, a=clamp(f.t,0,1), r=f.r*(1.3-a*0.3);
+    g.fillStyle=rgba(C['--c3'],a*0.8);
+    g.fillRect(Math.round(f.x),Math.round(f.y-2),Math.round(r),4);
+    g.fillRect(Math.round(f.x+r*0.3),Math.round(f.y-r/2),4,Math.round(r));
+    g.fillRect(Math.round(f.x+r*0.55),Math.round(f.y-r*0.35),3,Math.round(r*0.7));
+  }
   /* 碎片 */
   S.fx.forEach(p=>{ g.fillStyle=rgba(p.c,clamp(p.life,0,1)*0.85);
     g.fillRect(Math.round(p.x),Math.round(p.y),p.s,p.s); });
@@ -719,8 +808,19 @@ function scr(id){ SCR.forEach(s=>document.getElementById(s).classList.toggle('on
 function scrNone(){ SCR.forEach(s=>document.getElementById(s).classList.remove('on')); }
 function stopSrc(){ if(A.src){ try{A.src.stop();}catch(e){} A.src=null; } }
 
-function startGame(){
-  if(!BUF) return;
+async function startGame(){
+  const pb2=document.getElementById('b-play');
+  if(!BUF){
+    try{ pb2.disabled=true; await loadSong(curIdx);
+         pb2.textContent='开始演奏'; pb2.disabled=false; }
+    catch(err){
+      pb2.disabled=false; pb2.textContent='重试';
+      document.getElementById('fragline').innerHTML=
+        '<b style="color:#d69f9f">'+String(err.message||err).replace(/</g,'&lt;')+'</b>'+
+        '<br>网络慢或连不上时会这样，点「重试」再来。';
+      scr('home'); return;
+    }
+  }
   cols(); resize();
   A.mus.gain.value=CFG.vol; A.sfx.gain.value=CFG.cue;
   S=newGame();
@@ -816,7 +916,8 @@ async function pickSong(i){
   if(i===curIdx){ startGame(); return; }          /* 已经是当前曲目，直接开演 */
   const el=document.getElementById('songlist');
   el.style.opacity='.45'; el.style.pointerEvents='none';
-  try{ await loadSong(i); buildSongs(); startGame(); }
+  BUF=null;
+  try{ await loadSong(i); buildSongs(); await startGame(); }
   catch(e){ alert('这首歌载入失败：'+(e.message||e)); }
   el.style.opacity='1'; el.style.pointerEvents='auto';
 }
@@ -869,7 +970,9 @@ else{
         const el=document.getElementById('hidle');
         el.src='henry_idle.png'; el.style.display='block';
       }catch(e){ console.warn('精灵图缺失，仍可游玩'); }
-      MANIFEST=j.songs; await loadSong(0);
+      MANIFEST=j.songs; curIdx=0;
+      document.getElementById('nowsong').textContent=
+        MANIFEST[0].title+' · '+MANIFEST[0].artist;
       pb.disabled=false; pb.textContent='开始演奏';
       if(j.ver && j.ver!==VER){                       /* 线上有新版但本地是缓存的旧页面 */
         const b=document.getElementById('updbar');
