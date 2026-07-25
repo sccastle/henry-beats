@@ -173,7 +173,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.7.2';
+const VER='V0.8.0';
 const CACHE_NAME='jhb-'+VER;
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
@@ -361,14 +361,14 @@ const GUNPAL={
  rocket:{M:'#7a6f5f',O:'#d9c489',G:'#3a332a',D:'#2a2e36',W:'#d69f9f'}
 };
 const GU=2, GPW=12, GPH=7;
-const MOBCAP=18;
+const MOBCAP=32;
 const WEAPON=[
  {c:0,  n:'手枪',   g:'pistol', kind:'shot',  cnt:1, spread:0,  size:7,  spd:430, pierce:1, tr:1.3},
  {c:5,  n:'双管枪', g:'twin',   kind:'shot',  cnt:2, spread:10, size:8,  spd:460, pierce:1, tr:1.5},
  {c:12, n:'散弹枪', g:'shot',   kind:'shot',  cnt:5, spread:24, size:9,  spd:490, pierce:1, tr:1.6},
  {c:25, n:'机关枪', g:'mg',     kind:'shot',  cnt:3, spread:7,  size:8,  spd:660, pierce:2, tr:2.6, stag:16},
  {c:40, n:'激光炮', g:'laser',  kind:'beam',  cnt:1, spread:0,  size:16, spd:0,   pierce:99},
- {c:60, n:'火箭筒', g:'rocket', kind:'rocket',cnt:1, spread:0,  size:20, spd:390, pierce:1, boom:64, tr:1.8}
+ {c:60, n:'火箭筒', g:'rocket', kind:'rocket',cnt:1, spread:0,  size:20, spd:390, pierce:1, boom:92, tr:1.8}
 ];
 function tierIdx(combo){ let k=0; for(let i=0;i<WEAPON.length;i++) if(combo>=WEAPON[i].c) k=i; return k; }
 function drawGun(x,y,ti,rec){
@@ -489,11 +489,14 @@ function boom(x,y,r,c){
     S.fx.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*0.6,life:1,c:c,s:4});
   }
 }
-const MOBY={slime:GROUND-9, cube:GROUND-34, bat:GROUND-56};
 function spawnMob(){
   if(S.mobs.length>=MOBCAP) return;
   const t=['slime','bat','cube'][Math.floor(Math.random()*3)];
-  S.mobs.push({x:VW+26, y:MOBY[t], bob:Math.random()*6, t:t});
+  const l=Math.floor(Math.random()*S.lanes);
+  /* 站在弹道高度上，不再用独立常数，多少轨都不会错位 */
+  const hp=(t==='cube'?2:1)+Math.floor(S.tier/2);
+  S.mobs.push({x:VW+26, y:laneY(l), lane:l, hp:hp, max:hp,
+               hurt:0, bob:Math.random()*6, t:t});
 }
 function tap(lane){
   if(!S||!S.running) return;
@@ -570,12 +573,14 @@ function step(dt){
   /* 敌人从右边来，走到 Henry 前方排队 */
   S.spawnT-=dt;
   if(S.spawnT<=0){
-    S.spawnT=0.34+Math.random()*0.30;
+    const base=[0.50,0.42,0.34,0.26,0.20,0.15][S.tier];
+    S.spawnT=base*(0.8+Math.random()*0.5);
     spawnMob();
-    if(S.tier>=3) spawnMob();        /* 武器升级后敌人也跟着变多 */
+    if(S.tier>=2) spawnMob();
+    if(S.tier>=4) spawnMob();        /* 大武器登场时场面已经堆满 */
   }
   S.mobs.sort((a,b)=>a.x-b.x).forEach((m,i)=>{
-    const tg=S.hx+92+i*19, d=tg-m.x;
+    const tg=Math.max(S.hx+84, VW-18-i*15), d=tg-m.x;
     if(d<-1) m.x+=Math.max(-34*dt, d);
     else if(d>1) m.x+=Math.min(34*dt, d);
   });
@@ -587,11 +592,21 @@ function step(dt){
     if(b.x>VW+60||b.life<=0){ S.bullets.splice(i,1); continue; }
     for(let j=S.mobs.length-1;j>=0;j--){
       const m=S.mobs[j];
-      const hit = b.beam ? (m.x>b.x && Math.abs(m.y-b.y)<b.s/2+10)
+      const hit = b.beam ? (m.x>b.x && Math.abs(m.y-b.y)<24)
                          : (Math.abs(m.x-b.x)<b.s/2+MW*MU/2 && Math.abs(m.y-b.y)<26);
       if(!hit) continue;
       const wasBoom=b.boom;
       if(wasBoom){ boom(m.x,m.y,b.boom,b.c); S.bullets.splice(i,1); }
+      const dmg = wasBoom?99 : (b.beam?2:1);
+      m.hp-=dmg; m.hurt=1;
+      if(m.hp>0){                       /* 没打死：溅几点火花，子弹照样消耗 */
+        for(let k=0;k<3;k++){
+          const a=-0.4-Math.random()*2.2, sp=40+Math.random()*70;
+          S.fx.push({x:m.x,y:m.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.7,c:b.c,s:2});
+        }
+        if(!wasBoom && --b.pierce<=0){ S.bullets.splice(i,1); break; }
+        continue;
+      }
       S.mobs.splice(j,1); S.kills++;
       for(let k=0;k<6;k++){
         const a=-0.35-Math.random()*2.4, sp=50+Math.random()*100;
@@ -616,6 +631,7 @@ function step(dt){
     }
     if(e.life<=0) S.booms.splice(i,1);
   }
+  S.mobs.forEach(m=>{ if(m.hurt>0) m.hurt=Math.max(0,m.hurt-dt*6); });
   if(S.flash){ S.flash.t-=dt*9; if(S.flash.t<=0) S.flash=null; }
   for(let i=S.fx.length-1;i>=0;i--){
     const p=S.fx[i];
@@ -684,7 +700,14 @@ function draw(clock){
   S.mobs.forEach(m=>{
     const amp=m.t==='bat'?3:(m.t==='cube'?2:1);
     const bv=Math.round(Math.sin(clock*3.2+m.bob)*amp);
-    drawMap(MOB[m.t], Math.round(m.x-MW*MU/2), Math.round(m.y-MH*MU/2)+bv, MU, MOBC, false);
+    const u=MU+(m.hurt>0.4?1:0);      /* 挨打时整体放大一格，不改亮度 */
+    const mx=Math.round(m.x-MW*u/2), my=Math.round(m.y-MH*u/2)+bv;
+    drawMap(MOB[m.t], mx, my, u, MOBC, false);
+    if(m.hp>1){                       /* 血越厚框越粗，纯几何 */
+      g.strokeStyle=rgba(C['--dim'],0.34+0.10*Math.min(m.hp,4));
+      g.lineWidth=m.hp>=3?3:2;
+      g.strokeRect(mx-3,my-3,MW*u+6,MH*u+6);
+    }
   });
   /* 子弹：六种形态，全靠几何区分，不靠亮度 */
   S.bullets.forEach(b=>{
