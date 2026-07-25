@@ -1,9 +1,15 @@
 /* JUST HENRY & BEATS · 离线缓存
-   改动 VER 就会触发浏览器更新这个 Worker，页面上会弹出更新提示。 */
-const VER   = 'V0.7.0';
+   ------------------------------------------------------------------
+   策略分两类：
+     · 页面和谱面（.html / .json）走「网络优先」——联网时永远拿最新的，
+       断网才回落到缓存。这样更新 index.html 立刻生效。
+     · 音频和图片（.m4a / .png / webmanifest）走「缓存优先」——体积大且
+       基本不变，存一次就不再重复下载。
+   发新版时把下面的 VER 改掉，旧缓存会在激活时清空。
+   ------------------------------------------------------------------ */
+const VER   = 'V0.7.1';
 const CACHE = 'jhb-' + VER;
 
-/* 开机就该有的东西，装 Worker 时一次性存好 */
 const SHELL = [
   'index.html', 'henry_run.png', 'henry_idle.png',
   'icon-192.png', 'icon-512.png', 'app.webmanifest'
@@ -12,8 +18,8 @@ const SHELL = [
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    /* 单个失败不能拖垮整体安装 */
     await Promise.all(SHELL.map(u => c.add(u).catch(() => {})));
+    await self.skipWaiting();
   })());
 });
 
@@ -25,10 +31,13 @@ self.addEventListener('activate', e => {
   })());
 });
 
-/* 页面点「立即更新」时会发这条消息 */
 self.addEventListener('message', e => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
+
+function isNetFirst(p) {
+  return p.endsWith('/') || p.endsWith('.html') || p.endsWith('.json');
+}
 
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -36,15 +45,21 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
 
-  /* manifest.json 永远走网络：版本检测全靠它是最新的 */
-  if (url.pathname.endsWith('manifest.json')) {
-    e.respondWith(
-      fetch(req).catch(() => caches.match(req, { ignoreSearch: true }))
-    );
+  if (isNetFirst(url.pathname)) {
+    e.respondWith((async () => {
+      try {
+        const res = await fetch(req);
+        if (res && res.ok) { const c = await caches.open(CACHE); c.put(req, res.clone()); }
+        return res;
+      } catch (err) {
+        const hit = await caches.match(req, { ignoreSearch: true });
+        if (hit) return hit;
+        throw err;
+      }
+    })());
     return;
   }
 
-  /* 其余一律缓存优先。歌曲第一次播放时被顺手存下，之后再也不用联网 */
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
     const hit = await c.match(req, { ignoreSearch: true });
