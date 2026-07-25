@@ -62,8 +62,7 @@
 <body>
 <div id="wrap">
   <canvas id="cv"></canvas>
-  <button id="pause">II</button>
-
+  
   <div class="scr on" id="home">
     <canvas id="logo" width="520" height="130" style="width:390px;height:97px"></canvas>
     <div style="display:flex;flex-direction:column;gap:9px;margin-top:4px">
@@ -103,9 +102,10 @@
   </div>
 
   <div class="scr" id="paused">
-    <p class="sub" style="font-size:15px;color:var(--ink)">已暂停</p>
-    <button class="btn" id="p-resume">继续</button>
-    <button class="btn g" id="p-quit">回到首页</button>
+    <p class="sub" style="font-size:17px;color:var(--ink)">已暂停</p>
+    <button class="btn" id="p-resume">继续演奏</button>
+    <button class="btn g" id="p-restart">从头重来</button>
+    <button class="btn g" id="p-quit">回到主菜单</button>
   </div>
 
   <div class="scr" id="result">
@@ -162,6 +162,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
+const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
 let CHARTS=null, SONG=null, MANIFEST=[], curIdx=0;
 const SECN=['热身','加速','间奏','高潮'];
@@ -183,7 +184,7 @@ function putSave(){ try{ localStorage.setItem('jhb_save',JSON.stringify(SAVE)); 
 /* ===================== 布局 ===================== */
 const VW=640, VH=360;
 let FIELD_W=480, FIELD_X=(VW-FIELD_W)/2;
-const TOP=32, JUDGE=214, GROUND=286, BTN_Y=292, BTN_H=60;
+const TOP=44, JUDGE=214, GROUND=286, BTN_Y=292, BTN_H=60;
 function setField(lanes){ FIELD_W = lanes===2?360:480; FIELD_X=(VW-FIELD_W)/2; }
 const NH=20;                                        // 音符高度（底边对线的关键：所有音符等高）
 
@@ -493,6 +494,7 @@ cv.addEventListener('pointerdown',e=>{
   cv.setPointerCapture(e.pointerId);
   const r=cv.getBoundingClientRect();
   const x=(e.clientX-r.left)/scale, y=(e.clientY-r.top)/scale;
+  if(x>=PBTN.x-8 && x<=PBTN.x+PBTN.w+8 && y<=PBTN.y+PBTN.h+8){ pauseGame(); e.preventDefault(); return; }
   if(y<JUDGE-16) return;
   if(x<FIELD_X||x>FIELD_X+FIELD_W) return;
   tap(clamp(Math.floor((x-FIELD_X)/laneW()),0,S.lanes-1));
@@ -665,21 +667,27 @@ function draw(clock){
   }
 }
 function drawHUD(bt){
-  /* 进度 */
-  const bw=VW-36, pr=clamp((S.songT-IN)/(OUT-IN),0,1);
-  g.fillStyle=C['--line']; g.fillRect(18,8,bw,3);
-  g.fillStyle=rgba(C['--acc'],0.7); g.fillRect(18,8,bw*pr,3);
-  for(let i=1;i<4;i++){ g.fillStyle=rgba(C['--dim'],0.55);
-    g.fillRect(Math.round(18+bw*((AOFF+i*(TOTB/4)*SPB-IN)/(OUT-IN))),5,2,9); }
+  /* 暂停键：画在画布里，跟着缩放走，位置永远对 */
+  const P=PBTN;
+  g.fillStyle=rgba(C['--acc'],0.10); g.fillRect(P.x,P.y,P.w,P.h);
+  g.strokeStyle=rgba(C['--acc'],0.75); g.lineWidth=2; g.strokeRect(P.x+1,P.y+1,P.w-2,P.h-2);
+  g.fillStyle=C['--acc'];
+  g.fillRect(P.x+17,P.y+9,6,16); g.fillRect(P.x+29,P.y+9,6,16);
   /* 分数 */
-  pxText(g,'SCORE',20,20,2,rgba(C['--dim'],0.8),'l');
-  pxText(g,String(S.score).padStart(7,'0'),20,34,3,C['--ink'],'l');
+  pxText(g,'SCORE',P.x+P.w+14,P.y+2,1.6,rgba(C['--dim'],0.85),'l');
+  pxText(g,String(S.score).padStart(7,'0'),P.x+P.w+14,P.y+14,2.4,C['--ink'],'l');
   /* 连击 */
   if(S.combo>1){
-    pxText(g,String(S.combo),VW-20,20,4,C['--acc'],'r');
-    pxText(g,'COMBO',VW-20,50,2,rgba(C['--dim'],0.8),'r');
+    pxText(g,String(S.combo),VW-14,4,4,C['--acc'],'r');
+    pxText(g,'COMBO',VW-14,34,1.6,rgba(C['--dim'],0.85),'r');
   }
-  /* 节奏能量：只涨不掉，没有失败 */
+  /* 进度 */
+  const bx=18, bw=VW-36, by=TOP-5, pr=clamp((S.songT-IN)/(OUT-IN),0,1);
+  g.fillStyle=C['--line']; g.fillRect(bx,by,bw,3);
+  g.fillStyle=rgba(C['--acc'],0.7); g.fillRect(bx,by,bw*pr,3);
+  for(let i=1;i<4;i++){ g.fillStyle=rgba(C['--dim'],0.55);
+    g.fillRect(Math.round(bx+bw*((AOFF+i*(TOTB/4)*SPB-IN)/(OUT-IN))),by-3,2,9); }
+  /* 节奏能量：只涨不掉 */
   const ex=VW-150, ey=JUDGE+16;
   g.fillStyle=C['--line']; g.fillRect(ex,ey,130,8);
   g.fillStyle=rgba(C['--c1'],0.75); g.fillRect(ex,ey,130*S.energy/100,8);
@@ -699,10 +707,8 @@ function drawJudge(){
 
 /* ===================== 流程 ===================== */
 const SCR=['home','songs','setting','paused','result'];
-function scr(id){ SCR.forEach(s=>document.getElementById(s).classList.toggle('on',s===id));
-  document.getElementById('pause').style.display='none'; }
-function scrNone(){ SCR.forEach(s=>document.getElementById(s).classList.remove('on'));
-  document.getElementById('pause').style.display='block'; }
+function scr(id){ SCR.forEach(s=>document.getElementById(s).classList.toggle('on',s===id)); }
+function scrNone(){ SCR.forEach(s=>document.getElementById(s).classList.remove('on')); }
 function stopSrc(){ if(A.src){ try{A.src.stop();}catch(e){} A.src=null; } }
 
 function startGame(){
@@ -799,12 +805,12 @@ function buildSongs(){
   });
 }
 async function pickSong(i){
-  if(i===curIdx){ scr('home'); return; }
+  if(i===curIdx){ startGame(); return; }          /* 已经是当前曲目，直接开演 */
   const el=document.getElementById('songlist');
-  el.style.opacity='.45';
-  try{ await loadSong(i); buildSongs(); scr('home'); }
-  catch(e){ alert('这首歌载入失败'); }
-  el.style.opacity='1';
+  el.style.opacity='.45'; el.style.pointerEvents='none';
+  try{ await loadSong(i); buildSongs(); startGame(); }
+  catch(e){ alert('这首歌载入失败：'+(e.message||e)); }
+  el.style.opacity='1'; el.style.pointerEvents='auto';
 }
 function fragLine(){
   document.getElementById('fragline').textContent=
@@ -829,8 +835,8 @@ document.getElementById('b-songs').onclick=()=>{ buildSongs(); scr('songs'); };
 document.getElementById('b-set').onclick=()=>scr('setting');
 document.getElementById('s-back').onclick=()=>scr('home');
 document.getElementById('set-back').onclick=()=>scr('home');
-document.getElementById('pause').onclick=pauseGame;
 document.getElementById('p-resume').onclick=resumeGame;
+document.getElementById('p-restart').onclick=()=>{ stopSrc(); startGame(); };
 document.getElementById('p-quit').onclick=()=>{ stopSrc(); S=null; scr('home'); };
 document.getElementById('r-again').onclick=startGame;
 document.getElementById('r-home').onclick=()=>{ S=null; scr('home'); };
