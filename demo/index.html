@@ -228,119 +228,113 @@ const Dodge={
 };
 
 /* ================= C · 音乐画布 ================= */
-/* 12 色调色板：同一明度带内取色，保证任意组合都协调，且亮度不跳变 */
 const CPAL=['#8fb4d9','#7fd6c0','#93cfa2','#c3d68f','#d9c489','#d6a87f',
             '#d69f9f','#d69fc4','#b79ad6','#9f9fd6','#9fc4d6','#a8d6cf'];
-/* 五声音阶三个八度，怎么点都不会难听 */
 const CSCALE=[0,2,4,7,9,12,14,16,19,21,24,26,28,31,33];
 
 function polyPath(cx,cy,r,n,rot,star){
   g.beginPath();
   const N=star?n*2:n;
   for(let i=0;i<N;i++){
-    const an=i/N*TAU+rot;
-    const rr=star&&(i%2) ? r*0.46 : r;
-    const fn=i?'lineTo':'moveTo';
-    g[fn](cx+Math.cos(an)*rr, cy+Math.sin(an)*rr);
+    const an=i/N*TAU+rot, rr=star&&(i%2)?r*0.46:r;
+    g[i?'lineTo':'moveTo'](cx+Math.cos(an)*rr, cy+Math.sin(an)*rr);
   }
   g.closePath();
 }
-const SHAPES=[
-  /* 0 方 */ (m,r,a)=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot+m.spin*m.age);
-      g.strokeRect(-r,-r,r*2,r*2); g.restore(); },
-  /* 1 圆 */ (m,r,a)=>{ g.beginPath(); g.arc(m.x,m.y,r,0,TAU); g.stroke(); },
-  /* 2 三角 */ (m,r,a)=>{ polyPath(m.x,m.y,r,3,m.rot+m.spin*m.age); g.stroke(); },
-  /* 3 六边 */ (m,r,a)=>{ polyPath(m.x,m.y,r,6,m.rot+m.spin*m.age); g.stroke(); },
-  /* 4 星 */  (m,r,a)=>{ polyPath(m.x,m.y,r,5,m.rot+m.spin*m.age,1); g.stroke(); },
-  /* 5 花瓣 */(m,r,a)=>{ for(let i=0;i<6;i++){ const an=i/6*TAU+m.rot+m.spin*m.age;
-      g.beginPath(); g.arc(m.x+Math.cos(an)*r*0.5, m.y+Math.sin(an)*r*0.5, r*0.5,0,TAU); g.stroke(); } },
-  /* 6 同心 */(m,r,a)=>{ for(let i=1;i<=3;i++){ g.beginPath();
-      g.arc(m.x,m.y,r*i/3,0,TAU); g.stroke(); } },
-  /* 7 十字光 */(m,r,a)=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot+m.spin*m.age);
-      for(let i=0;i<4;i++){ g.rotate(TAU/4);
-        g.beginPath(); g.moveTo(0,0); g.lineTo(0,-r); g.stroke(); } g.restore(); },
-  /* 8 菱格 */(m,r,a)=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot+Math.PI/4+m.spin*m.age);
-      g.strokeRect(-r*0.72,-r*0.72,r*1.44,r*1.44);
-      g.strokeRect(-r*0.4,-r*0.4,r*0.8,r*0.8); g.restore(); },
-  /* 9 螺旋 */(m,r,a)=>{ g.beginPath();
-      for(let i=0;i<=42;i++){ const t=i/42, an=t*TAU*1.6+m.rot+m.spin*m.age, rr=r*t;
-        const fn=i?'lineTo':'moveTo'; g[fn](m.x+Math.cos(an)*rr,m.y+Math.sin(an)*rr); }
-      g.stroke(); }
+/* 每个形状给出 path，填充和描边由分层逻辑统一决定 */
+const SHP=[
+  {n:'方',  p:(m,r)=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot+m.spin*m.age);
+      g.beginPath(); g.rect(-r,-r,r*2,r*2); g.restore(); }},
+  {n:'圆',  p:(m,r)=>{ g.beginPath(); g.arc(m.x,m.y,r,0,TAU); }},
+  {n:'三角',p:(m,r)=>polyPath(m.x,m.y,r,3,m.rot+m.spin*m.age)},
+  {n:'六边',p:(m,r)=>polyPath(m.x,m.y,r,6,m.rot+m.spin*m.age)},
+  {n:'星',  p:(m,r)=>polyPath(m.x,m.y,r,5,m.rot+m.spin*m.age,1)},
+  {n:'菱',  p:(m,r)=>polyPath(m.x,m.y,r,4,m.rot+Math.PI/4+m.spin*m.age)},
+  {n:'八边',p:(m,r)=>polyPath(m.x,m.y,r,8,m.rot+m.spin*m.age)},
+  {n:'六星',p:(m,r)=>polyPath(m.x,m.y,r,6,m.rot+m.spin*m.age,1)}
 ];
+/* 只在描边层用的装饰形状 */
+function deco(m,r,a){
+  if(m.kind===8){                      /* 花瓣 */
+    for(let i=0;i<6;i++){ const an=i/6*TAU+m.rot+m.spin*m.age;
+      g.beginPath(); g.arc(m.x+Math.cos(an)*r*0.5,m.y+Math.sin(an)*r*0.5,r*0.5,0,TAU); g.stroke(); }
+  }else if(m.kind===9){                /* 同心 */
+    for(let i=1;i<=3;i++){ g.beginPath(); g.arc(m.x,m.y,r*i/3,0,TAU); g.stroke(); }
+  }
+}
 
 const Canv={
-  init(){
-    S.marks=[]; S.taps=0; S.shape=0; S.lastTap=0;
-    S.ripples=[]; S.lastB=-1;
-  },
+  init(){ S.marks=[]; S.taps=0; S.ripples=[]; S.lastB=-1; S.cool=0; S.lastPos=null; },
   step(dt){
     const b=beatNow(), ib=Math.floor(b);
-    if(ib!==S.lastB){ S.lastB=ib;
-      S.ripples.push({r:0,life:1});                 /* 每拍一圈底纹涟漪 */
-      if(S.ripples.length>4) S.ripples.shift();
-    }
-    S.ripples.forEach(r=>{ r.r+=260*dt; r.life-=dt*0.85; });
-    S.marks.forEach(m=>{ m.age+=dt; m.r+=m.grow*dt; m.grow*=(1-dt*0.55); });
+    if(ib!==S.lastB){ S.lastB=ib; S.ripples.push({r:0,life:1});
+      if(S.ripples.length>3) S.ripples.shift(); }
+    S.ripples.forEach(r=>{ r.r+=250*dt; r.life-=dt*0.8; });
+    S.cool=Math.max(0,S.cool-dt);
+    S.marks.forEach(m=>{ m.age+=dt; m.r+=m.grow*dt; m.grow*=(1-dt*0.6); });
     for(let i=S.marks.length-1;i>=0;i--) if(S.marks[i].age>S.marks[i].life) S.marks.splice(i,1);
-    if(S.marks.length>110) S.marks.splice(0,S.marks.length-110);
+    if(S.marks.length>70) S.marks.splice(0,S.marks.length-70);
   },
   draw(){
-    const b=beatNow(), frac=b-Math.floor(b);
-    /* 底纹：随拍扩散的同心圈，极低对比 */
-    S.ripples.forEach(r=>{
-      if(r.life<=0) return;
-      g.strokeStyle=rgba(C['--line'],clamp(r.life,0,1)*0.30); g.lineWidth=2;
-      g.beginPath(); g.arc(VW/2,VH/2,r.r,0,TAU); g.stroke();
-    });
-    g.fillStyle=rgba(C['--line'],0.30);
+    S.ripples.forEach(r=>{ if(r.life<=0) return;
+      g.strokeStyle=rgba(C['--line'],clamp(r.life,0,1)*0.28); g.lineWidth=2;
+      g.beginPath(); g.arc(VW/2,VH/2,r.r,0,TAU); g.stroke(); });
+    g.fillStyle=rgba(C['--line'],0.28);
     for(let x=32;x<VW;x+=64) for(let y=32;y<VH;y+=64) g.fillRect(x,y,2,2);
-    /* 图形：先描边，再叠一层半透明填充，最后画一圈外晕（纯描边，不改亮度） */
-    S.marks.forEach(m=>{
-      const t=m.age/m.life, a=clamp(1-t*t,0,1);
-      const r=m.r;
+    /* 小的先画，大的后画 —— 主视觉永远在上层 */
+    S.marks.slice().sort((p,q)=>p.tier-q.tier).forEach(m=>{
+      const t=m.age/m.life, a=clamp(1-t*t,0,1), r=m.r;
       g.lineWidth=m.lw;
-      if(m.fill){
-        g.fillStyle=rgba(m.c,a*0.14);
-        g.save(); g.beginPath();
-        if(m.kind===1) g.arc(m.x,m.y,r,0,TAU);
-        else polyPath(m.x,m.y,r,[4,0,3,6,5,6,3,4,4,6][m.kind]||4,m.rot+m.spin*m.age);
-        g.fill(); g.restore();
-      }
-      g.strokeStyle=rgba(m.c,a*0.9);
-      SHAPES[m.kind](m,r,a);
-      if(m.echo){                                   /* 外层回声轮廓 */
-        g.strokeStyle=rgba(m.c2,a*0.34); g.lineWidth=Math.max(1,m.lw-1);
-        SHAPES[m.kind]({...m,r:r*1.34},r*1.34,a);
+      if(m.kind>=8){ g.strokeStyle=rgba(m.c,a*0.85); deco(m,r,a); return; }
+      SHP[m.kind].p(m,r);
+      if(m.solid){ g.fillStyle=rgba(m.c,a*m.fillA); g.fill(); }
+      g.strokeStyle=rgba(m.c,a*0.92); g.stroke();
+      if(m.echo){                       /* 主视觉多一圈外轮廓 */
+        SHP[m.kind].p({...m},r*1.30);
+        g.strokeStyle=rgba(m.c2,a*0.3); g.lineWidth=Math.max(1.5,m.lw-1.5); g.stroke();
       }
     });
-    hud('随便点　已画 '+S.taps+' 笔　没有输赢');
+    const tips=['正拍上会画出大图形','','',''];
+    hud('跟着节拍点　已画 '+S.taps+' 笔　'+(S.taps<6?'试试踩在鼓点上':''));
   },
-  down(x,y){ this.put(x,y); },
-  move(x,y){                                        /* 划一条线也能连续画 */
+  down(x,y){ this.put(x,y,true); },
+  move(x,y){
     if(!S.lastPos){ S.lastPos=[x,y]; return; }
-    if(Math.hypot(x-S.lastPos[0],y-S.lastPos[1])>46) this.put(x,y);
+    if(Math.hypot(x-S.lastPos[0],y-S.lastPos[1])>90) this.put(x,y,false);
   },
   up(){ S.lastPos=null; },
-  put(x,y){
+  put(x,y,isTap){
+    if(S.cool>0) return;
+    S.cool=0.10;                        /* 冷却，防止划一下糊一片 */
     S.taps++;
-    const b=beatNow(), frac=Math.abs(b-Math.round(b));
-    const onBeat=frac<0.16;                         /* 踩在拍上给更大更华丽的图形 */
-    S.shape=(S.shape+1+Math.floor(Math.random()*3))%SHAPES.length;
-    const ci=Math.floor((x/VW)*CPAL.length+Math.random()*2)%CPAL.length;
-    const c=CPAL[ci], c2=CPAL[(ci+4)%CPAL.length];
+    const b=beatNow();
+    const d1=Math.abs(b-Math.round(b));          /* 离最近正拍 */
+    const d2=Math.abs(b*2-Math.round(b*2))/2;    /* 离最近八分 */
+    /* 三档层次：正拍=大实心，八分=中等，离拍=小点缀 */
+    let tier = d1<0.16 ? 2 : (d2<0.13 ? 1 : 0);
+    if(!isTap && tier===2) tier=1;               /* 划出来的不占主视觉 */
+    const P=[
+      {r0:5,  grow:34, life:2.0, lw:1.8, solid:false, fillA:0,    echo:false, deco:true},
+      {r0:9,  grow:64, life:2.8, lw:2.6, solid:true,  fillA:0.13, echo:false, deco:false},
+      {r0:15, grow:104,life:3.6, lw:4.0, solid:true,  fillA:0.24, echo:true,  deco:false}
+    ][tier];
+    const ci=Math.floor((x/VW)*CPAL.length+(tier===2?0:Math.random()*2))%CPAL.length;
+    const kind = (tier===0 && Math.random()<0.45)
+      ? 8+Math.floor(Math.random()*2)             /* 小图形有机会用装饰形状 */
+      : Math.floor(Math.random()*SHP.length);
     S.marks.push({
-      x:x, y:y, r:onBeat?14:8, grow:(onBeat?92:52)+Math.random()*40,
-      age:0, life:(onBeat?3.4:2.5)+Math.random()*1.2,
-      c:c, c2:c2, lw:onBeat?3.5:2.2, kind:S.shape,
-      rot:Math.random()*TAU, spin:(Math.random()-0.5)*1.1,
-      fill:Math.random()<0.5, echo:onBeat
+      x:x, y:y, r:P.r0, grow:P.grow+Math.random()*20, age:0,
+      life:P.life+Math.random()*0.8, tier:tier,
+      c:CPAL[ci], c2:CPAL[(ci+4)%CPAL.length],
+      lw:P.lw, solid:P.solid&&Math.random()<0.75, fillA:P.fillA,
+      echo:P.echo, kind:kind,
+      rot:Math.random()*TAU, spin:(Math.random()-0.5)*(tier===2?0.5:1.1)
     });
     S.lastPos=[x,y];
-    /* 音高按 y，越靠上越高；踩拍时加一个五度和声 */
     const idx=clamp(Math.floor((1-y/VH)*CSCALE.length),0,CSCALE.length-1);
     const f=261.6*Math.pow(2,CSCALE[idx]/12);
-    tone(f,onBeat?0.75:0.5,onBeat?0.17:0.12,'triangle');
-    if(onBeat) tone(f*1.5,0.6,0.07,'sine');
+    tone(f, tier===2?0.8:0.5, tier===2?0.18:(tier===1?0.13:0.09), 'triangle');
+    if(tier===2) tone(f*1.5,0.65,0.075,'sine');
   },
   result(){ return '这一首画了 '+S.taps+' 笔'; }
 };
