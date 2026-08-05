@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>JHB · 四种模式试玩</title>
+<style>
+  :root{
+    --bg:#242833; --bg2:#2c313e; --bg3:#343a49; --line:#424959; --dark:#1b1e26;
+    --ink:#dde2ea; --dim:#8d95a6; --acc:#7fd6c0;
+    --c0:#8fb4d9; --c1:#93cfa2; --c2:#b79ad6; --c3:#d9c489; --c4:#d69f9f;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+    overscroll-behavior:none;user-select:none;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none;image-rendering:pixelated}
+  .scr{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;padding:20px;background:var(--bg);text-align:center;overflow-y:auto}
+  .scr.on{display:flex}
+  h1{font-size:19px;margin:0;letter-spacing:.14em;font-weight:600}
+  .sub{color:var(--dim);font-size:12px;line-height:1.75;margin:0;max-width:520px}
+  .cards{display:flex;gap:11px;flex-wrap:wrap;justify-content:center;max-width:660px}
+  .card{width:150px;border:2px solid var(--line);background:var(--bg2);padding:12px 11px;
+    cursor:pointer;transition:border-color .2s ease}
+  .card:active{border-color:var(--acc)}
+  .card b{display:block;font-size:13.5px;margin-bottom:5px;color:var(--acc);font-weight:600}
+  .card span{display:block;font-size:11px;color:var(--dim);line-height:1.65}
+  .btn{appearance:none;border:2px solid var(--acc);background:transparent;color:var(--acc);
+    font:inherit;font-size:14px;padding:9px 30px;cursor:pointer;letter-spacing:.1em}
+  .btn.g{border-color:var(--line);color:var(--dim);font-size:12.5px;padding:8px 22px}
+  #rot{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:10px;background:var(--bg);z-index:60;color:var(--dim);font-size:14px}
+  body.port #rot{display:flex}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+
+<div class="scr on" id="menu">
+  <h1>四种模式 · 试玩</h1>
+  <p class="sub">同一首曲子（ATYCHIMANIA），四种玩法各 60 秒。<br>
+    全程无闪光、无频闪、无屏幕震动。玩完选一个感觉最好的告诉我。</p>
+  <div class="cards">
+    <div class="card" data-m="dodge"><b>A · 安全通道</b><span>驾驶飞机待在发光的通道里。<br>不用找空隙，跟着线走就行。</span></div>
+    <div class="card" data-m="canvas"><b>C · 音乐画布</b><span>随便点，每一下都生成图案。<br>没有输赢，一首歌画一幅画。</span></div>
+    <div class="card" data-m="maze"><b>D · 节奏迷宫</b><span>踩着拍子走格子。<br>不考反应，考节奏感。</span></div>
+    <div class="card" data-m="fish"><b>E · 节拍捕捉</b><span>东西游过来，按住抓。<br>漏了不要紧，等下一条。</span></div>
+  </div>
+  <p class="sub" style="color:#6f7789">载入中…</p>
+</div>
+
+<div class="scr" id="over">
+  <h1 id="ovt">结束</h1>
+  <p class="sub" id="ovs"></p>
+  <button class="btn" id="again">再玩一次</button>
+  <button class="btn g" id="back">换个模式</button>
+</div>
+<div id="rot"><b style="color:var(--acc);font-weight:400;font-size:17px">请把屏幕横过来</b><span>这个试玩是横屏的</span></div>
+
+<script>
+(function(){
+'use strict';
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v), lerp=(a,b,t)=>a+(b-a)*t;
+const sstep=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
+const TAU=Math.PI*2;
+const VW=640, VH=432;
+const DEMO_LEN=60;                     /* 每个模式跑 60 秒 */
+
+/* ---------- 画布 ---------- */
+const cv=document.getElementById('cv'), g=cv.getContext('2d');
+let scale=1;
+function resize(){
+  const W=innerWidth,H=innerHeight;
+  document.body.classList.toggle('port',H>W*1.02);
+  scale=Math.min(W/VW,H/VH);
+  const dpr=Math.min(devicePixelRatio||1,2.5);
+  cv.style.width=(VW*scale)+'px'; cv.style.height=(VH*scale)+'px';
+  cv.width=Math.round(VW*scale*dpr); cv.height=Math.round(VH*scale*dpr);
+  g.setTransform(scale*dpr,0,0,scale*dpr,0,0); g.imageSmoothingEnabled=false;
+}
+addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,150));
+let C={};
+function cols(){ ['--bg','--bg2','--bg3','--line','--dark','--ink','--dim','--acc','--c0','--c1','--c2','--c3','--c4']
+  .forEach(n=>C[n]=getComputedStyle(document.documentElement).getPropertyValue(n).trim()); }
+function rgba(h,a){ return 'rgba('+parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)+','+a+')'; }
+
+/* ---------- 音频 ---------- */
+const A={};
+function initAudio(){
+  if(A.ctx) return;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  A.ctx=new AC();
+  A.mus=A.ctx.createGain(); A.mus.gain.value=0.75; A.mus.connect(A.ctx.destination);
+  A.sfx=A.ctx.createGain(); A.sfx.gain.value=0.5;  A.sfx.connect(A.ctx.destination);
+  const n=Math.floor(A.ctx.sampleRate*0.4);
+  const b=A.ctx.createBuffer(1,n,A.ctx.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+  A.noise=b;
+}
+function env(t,a,dc,pk,dest){
+  const gn=A.ctx.createGain();
+  gn.gain.setValueAtTime(0.0001,t);
+  gn.gain.linearRampToValueAtTime(pk,t+a);
+  gn.gain.exponentialRampToValueAtTime(0.0001,t+a+dc);
+  gn.connect(dest||A.sfx); return gn;
+}
+function tone(f,dur,pk,type){
+  if(!A.ctx) return;
+  const t=A.ctx.currentTime+0.001;
+  const o=A.ctx.createOscillator(); o.type=type||'sine'; o.frequency.value=f;
+  o.connect(env(t,0.004,dur,pk||0.12)); o.start(t); o.stop(t+dur+0.05);
+}
+function noiseHit(f,q,dur,pk){
+  if(!A.ctx) return;
+  const t=A.ctx.currentTime+0.001;
+  const s=A.ctx.createBufferSource(); s.buffer=A.noise;
+  const bp=A.ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f; bp.Q.value=q;
+  s.connect(bp); bp.connect(env(t,0.001,dur,pk)); s.start(t); s.stop(t+dur+0.05);
+}
+let BUF=null, SONG=null;
+async function load(){
+  initAudio();
+  SONG=await (await fetch('atychimania.json')).json();
+  const ab=await (await fetch('atychimania.m4a')).arrayBuffer();
+  BUF=await new Promise((res,rej)=>A.ctx.decodeAudioData(ab,res,rej));
+}
+
+/* ---------- 通用状态 ---------- */
+let S=null, MODE=null, raf=0;
+function beatNow(){ return (S.t-SONG.beat0)/SONG.spb; }
+function startAudio(){
+  if(S.src){ try{S.src.stop();}catch(e){} }
+  const s=A.ctx.createBufferSource(); s.buffer=BUF; s.connect(A.mus);
+  const when=A.ctx.currentTime+0.15;
+  s.start(when,SONG['in']); s.stop(when+DEMO_LEN+1);
+  S.src=s; S.t0=when-SONG['in'];
+}
+function stopAudio(){ if(S&&S.src){ try{S.src.stop();}catch(e){} S.src=null; } }
+
+/* ================= A · 安全通道 ================= */
+/* 关键改良：不让玩家扫描全屏找空隙，而是把安全区直接画出来 */
+const Dodge={
+  init(){
+    S.px=VW*0.28; S.py=VH/2; S.hits=0; S.frames=0; S.inside=0;
+    S.trail=[]; S.drag=null;
+    /* 通道中心随音乐段落缓慢摆动，宽度随能量收缩 */
+    S.wave=[];
+    for(let i=0;i<4;i++) S.wave.push({a:14+Math.random()*30,f:0.06+Math.random()*0.16,p:Math.random()*TAU});
+    S.bul=[]; S.nextB=0;
+  },
+  lane(t){
+    let y=VH/2;
+    S.wave.forEach(w=>{ y+=Math.sin(t*w.f*TAU+w.p)*w.a; });
+    return clamp(y,90,VH-70);
+  },
+  halfW(t){ return 74-26*sstep((t%16)/16); },   /* 周期性收窄，制造紧张但从不消失 */
+  step(dt){
+    const t=S.t;
+    /* 拖动 */
+    S.py=clamp(S.py,40,VH-40);
+    /* 判定：在通道内就安全 */
+    const cy=this.lane(t), hw=this.halfW(t);
+    S.frames++;
+    const inside=Math.abs(S.py-cy)<hw-10;
+    if(inside) S.inside++;
+    else if(S.iframe<=0){ S.hits++; S.iframe=0.9; S.shake=1; noiseHit(220,1.2,0.2,0.4); }
+    S.iframe=Math.max(0,(S.iframe||0)-dt);
+    S.shake=Math.max(0,(S.shake||0)-dt*2.4);
+    S.trail.push({x:S.px,y:S.py,l:1});
+    if(S.trail.length>26) S.trail.shift();
+    S.trail.forEach(p=>p.l-=dt*1.6);
+    /* 装饰性弹幕：只在通道外飞，不参与判定，纯粹烘托气氛 */
+    S.nextB-=dt;
+    if(S.nextB<=0){
+      S.nextB=0.12;
+      const up=Math.random()<0.5;
+      const cy2=this.lane(t+0.4), hw2=this.halfW(t+0.4);
+      const y = up ? Math.random()*(cy2-hw2-20)+10 : cy2+hw2+20+Math.random()*(VH-cy2-hw2-40);
+      S.bul.push({x:VW+14,y:y,v:170+Math.random()*120,s:5+Math.random()*5});
+    }
+    for(let i=S.bul.length-1;i>=0;i--){
+      const b=S.bul[i]; b.x-=b.v*dt;
+      if(b.x<-20) S.bul.splice(i,1);
+    }
+  },
+  draw(){
+    const t=S.t, sh=S.shake?Math.round(Math.sin(t*40)*0):0;   /* 明确不做屏震 */
+    /* 通道：先画整片危险，再挖出安全带，安全区一目了然 */
+    const pts=[];
+    for(let x=0;x<=VW;x+=8) pts.push([x,this.lane(t+(x-S.px)/260), this.halfW(t+(x-S.px)/260)]);
+    g.fillStyle=rgba(C['--c4'],0.10);
+    g.fillRect(0,0,VW,VH);
+    g.fillStyle=C['--bg'];
+    g.beginPath(); g.moveTo(0,pts[0][1]-pts[0][2]);
+    pts.forEach(p=>g.lineTo(p[0],p[1]-p[2]));
+    for(let i=pts.length-1;i>=0;i--) g.lineTo(pts[i][0],pts[i][1]+pts[i][2]);
+    g.closePath(); g.fill();
+    /* 通道边界：粗描边，几何清晰 */
+    g.strokeStyle=rgba(C['--acc'],0.75); g.lineWidth=3;
+    g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]-p[2]):g.moveTo(p[0],p[1]-p[2])); g.stroke();
+    g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]+p[2]):g.moveTo(p[0],p[1]+p[2])); g.stroke();
+    /* 中心虚线：告诉你「站这儿最稳」 */
+    g.strokeStyle=rgba(C['--acc'],0.3); g.lineWidth=2; g.setLineDash([8,10]);
+    g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); g.stroke();
+    g.setLineDash([]);
+    /* 装饰弹幕 */
+    S.bul.forEach(b=>{ g.fillStyle=rgba(C['--c4'],0.5);
+      g.fillRect(Math.round(b.x),Math.round(b.y),Math.round(b.s*2),Math.round(b.s)); });
+    /* 尾迹 */
+    S.trail.forEach(p=>{ if(p.l<=0) return;
+      g.fillStyle=rgba(C['--acc'],p.l*0.3);
+      g.fillRect(Math.round(p.x-3),Math.round(p.y-2),5,4); });
+    /* 飞机：像素三角 */
+    const px=Math.round(S.px), py=Math.round(S.py), inv=S.iframe>0;
+    g.fillStyle=inv?rgba(C['--acc'],0.4):C['--acc'];
+    g.fillRect(px-12,py-3,18,6); g.fillRect(px+6,py-2,6,4);
+    g.fillRect(px-8,py-8,7,5);   g.fillRect(px-8,py+3,7,5);
+    g.fillStyle=C['--dark']; g.fillRect(px-2,py-2,4,4);
+    hud('待在通道里　安全 '+Math.round(S.inside/Math.max(1,S.frames)*100)+'%　碰壁 '+S.hits+' 次');
+  },
+  down(x,y){ S.drag={x:x,y:y}; },
+  move(x,y){ if(!S.drag) return;
+    S.py=clamp(S.py+(y-S.drag.y)*1.4,40,VH-40); S.drag={x:x,y:y}; },
+  up(){ S.drag=null; },
+  result(){ return '在通道里的时间 '+Math.round(S.inside/Math.max(1,S.frames)*100)+'%　碰壁 '+S.hits+' 次'; }
+};
+
+/* ================= C · 音乐画布 ================= */
+const Canv={
+  init(){ S.marks=[]; S.taps=0; S.hue=0; },
+  step(dt){
+    S.hue+=dt*8;
+    S.marks.forEach(m=>{ m.age+=dt; m.r+=m.grow*dt; });
+    if(S.marks.length>90) S.marks.splice(0,S.marks.length-90);
+  },
+  draw(){
+    const b=beatNow(), pulse=Math.pow(1-clamp(b-Math.floor(b),0,1),3);
+    /* 底纹：随拍缓慢呼吸的网格点，低对比 */
+    g.fillStyle=rgba(C['--line'],0.35);
+    for(let x=24;x<VW;x+=48) for(let y=24;y<VH;y+=48){
+      const s=2+Math.round(pulse*2); g.fillRect(x,y,s,s);
+    }
+    S.marks.forEach(m=>{
+      const a=clamp(1-m.age/m.life,0,1);
+      g.strokeStyle=rgba(m.c,a*0.8); g.lineWidth=m.lw;
+      if(m.kind===0){ g.strokeRect(m.x-m.r,m.y-m.r,m.r*2,m.r*2); }
+      else if(m.kind===1){ g.beginPath(); g.arc(m.x,m.y,m.r,0,TAU); g.stroke(); }
+      else{
+        g.beginPath();
+        for(let i=0;i<6;i++){ const an=i/6*TAU+m.rot;
+          const fn=i?'lineTo':'moveTo'; g[fn](m.x+Math.cos(an)*m.r,m.y+Math.sin(an)*m.r); }
+        g.closePath(); g.stroke();
+      }
+    });
+    hud('随便点　已画 '+S.taps+' 笔　没有输赢');
+  },
+  down(x,y){
+    S.taps++;
+    const pal=[C['--c0'],C['--c1'],C['--c2'],C['--c3'],C['--acc']];
+    const c=pal[Math.floor(Math.random()*pal.length)];
+    const kind=Math.floor(Math.random()*3);
+    S.marks.push({x:x,y:y,r:6,grow:26+Math.random()*40,age:0,life:2.6+Math.random()*1.6,
+                  c:c,lw:2+Math.random()*3,kind:kind,rot:Math.random()*TAU});
+    /* 按 y 决定音高，越靠上越高，五声音阶不会难听 */
+    const scale=[0,2,4,7,9,12,14,16,19,21];
+    const idx=clamp(Math.floor((1-y/VH)*scale.length),0,scale.length-1);
+    tone(261.6*Math.pow(2,scale[idx]/12),0.5,0.14,'triangle');
+  },
+  move(){}, up(){},
+  result(){ return '这一首画了 '+S.taps+' 笔'; }
+};
+
+/* ================= D · 节奏迷宫 ================= */
+const Maze={
+  init(){
+    S.gw=9; S.gh=5; S.cell=52;
+    S.ox=(VW-S.gw*S.cell)/2; S.oy=(VH-S.gh*S.cell)/2+16;
+    S.cx=0; S.cy=2; S.goalx=S.gw-1; S.goaly=2;
+    S.walls={}; S.laps=0; S.goodStep=0; S.badStep=0;
+    for(let i=0;i<11;i++){
+      const x=1+Math.floor(Math.random()*(S.gw-2)), y=Math.floor(Math.random()*S.gh);
+      if(x===S.goalx&&y===S.goaly) continue;
+      S.walls[x+','+y]=1;
+    }
+    S.lastBeat=-1; S.flash=0; S.pend=null;
+  },
+  step(dt){
+    const b=beatNow(), ib=Math.floor(b);
+    S.flash=Math.max(0,S.flash-dt*3);
+    if(ib!==S.lastBeat){
+      S.lastBeat=ib;
+      S.flash=1;
+      noiseHit(1400,2,0.03,0.16);
+      if(S.pend){                       /* 在拍点附近按下的方向，到拍才生效 */
+        const nx=S.cx+S.pend[0], ny=S.cy+S.pend[1];
+        if(nx>=0&&nx<S.gw&&ny>=0&&ny<S.gh&&!S.walls[nx+','+ny]){
+          S.cx=nx; S.cy=ny; S.goodStep++;
+          tone(523,0.12,0.12,'square');
+          if(S.cx===S.goalx&&S.cy===S.goaly){
+            S.laps++; S.cx=0; S.cy=2;
+            [660,880,1100].forEach((f,i)=>setTimeout(()=>tone(f,0.2,0.12,'square'),i*80));
+          }
+        }else{ S.badStep++; noiseHit(180,1,0.12,0.25); }
+        S.pend=null;
+      }
+    }
+  },
+  draw(){
+    const b=beatNow(), frac=b-Math.floor(b);
+    for(let y=0;y<S.gh;y++) for(let x=0;x<S.gw;x++){
+      const px=S.ox+x*S.cell, py=S.oy+y*S.cell;
+      const wall=S.walls[x+','+y];
+      g.fillStyle=wall?C['--bg3']:C['--bg2'];
+      g.fillRect(px+2,py+2,S.cell-4,S.cell-4);
+      if(wall){ g.fillStyle=rgba(C['--dim'],0.4);
+        for(let i=0;i<3;i++) g.fillRect(px+10+i*12,py+10,6,S.cell-20); }
+    }
+    /* 终点 */
+    const gx=S.ox+S.goalx*S.cell, gy=S.oy+S.goaly*S.cell;
+    g.strokeStyle=rgba(C['--c3'],0.8); g.lineWidth=3;
+    g.strokeRect(gx+6,gy+6,S.cell-12,S.cell-12);
+    /* 拍点指示：一圈随拍收缩的方框，纯几何 */
+    const r=S.cell*0.5+10-8*sstep(frac);
+    const cx=S.ox+S.cx*S.cell+S.cell/2, cy=S.oy+S.cy*S.cell+S.cell/2;
+    g.strokeStyle=rgba(C['--acc'],0.35+0.3*(1-frac)); g.lineWidth=3;
+    g.strokeRect(cx-r,cy-r,r*2,r*2);
+    /* 角色 */
+    g.fillStyle=C['--acc'];
+    g.fillRect(Math.round(cx-11),Math.round(cy-11),22,22);
+    g.fillStyle=C['--dark']; g.fillRect(Math.round(cx-6),Math.round(cy-4),4,4);
+    g.fillRect(Math.round(cx+2),Math.round(cy-4),4,4);
+    if(S.pend){                          /* 已排队的方向 */
+      g.fillStyle=rgba(C['--c3'],0.75);
+      g.fillRect(Math.round(cx+S.pend[0]*20-4),Math.round(cy+S.pend[1]*20-4),8,8);
+    }
+    hud('踩着拍子滑动移动　到达 '+S.laps+' 次　踏准 '+S.goodStep+' 步');
+  },
+  down(x,y){ S.sx=x; S.sy=y; },
+  move(){}, 
+  up(x,y){
+    const dx=x-S.sx, dy=y-S.sy;
+    if(Math.abs(dx)<16&&Math.abs(dy)<16) return;
+    S.pend = Math.abs(dx)>Math.abs(dy) ? [Math.sign(dx),0] : [0,Math.sign(dy)];
+  },
+  result(){ return '到达终点 '+S.laps+' 次　踏准 '+S.goodStep+' 步　走错 '+S.badStep+' 步'; }
+};
+
+/* ================= E · 节拍捕捉 ================= */
+const Fish={
+  init(){
+    S.fish=[]; S.caught=0; S.missed=0; S.idx=0; S.hook=VH/2; S.hookX=VW*0.22;
+    S.notes=SONG.charts.easy.notes.filter(n=>n.b*SONG.spb<DEMO_LEN+3);
+    S.pop=0;
+  },
+  step(dt){
+    const t=S.t;
+    while(S.idx<S.notes.length){
+      const n=S.notes[S.idx];
+      const at=SONG.beat0+n.b*SONG.spb;
+      if(at-t>2.6) break;
+      S.idx++;
+      S.fish.push({x:VW+26,y:90+((n.l*67+n.b*37)%(VH-190)),at:at,k:n.k,st:0,w:34});
+    }
+    S.fish.forEach(f=>{
+      const left=f.at-t;
+      f.x=S.hookX+left*((VW+26-S.hookX)/2.6);
+      if(f.st===0 && left<-0.45){ f.st=2; S.missed++; }
+    });
+    for(let i=S.fish.length-1;i>=0;i--) if(S.fish[i].x<-60) S.fish.splice(i,1);
+    S.pop=Math.max(0,S.pop-dt*2.4);
+  },
+  draw(){
+    /* 水面波纹：静态横线，不闪 */
+    g.fillStyle=rgba(C['--line'],0.35);
+    for(let y=60;y<VH-40;y+=46) g.fillRect(0,y,VW,2);
+    /* 捕捉线 */
+    g.fillStyle=rgba(C['--acc'],0.5); g.fillRect(S.hookX-2,40,4,VH-90);
+    S.fish.forEach(f=>{
+      const col=[C['--c0'],C['--c1'],C['--c2'],C['--c3']][f.k];
+      if(f.st===1){ g.fillStyle=rgba(col,0.25);
+        g.fillRect(Math.round(f.x-8),Math.round(f.y-8),16,16); return; }
+      const a=f.st===2?0.25:0.9;
+      g.fillStyle=rgba(col,a);
+      g.fillRect(Math.round(f.x-f.w/2),Math.round(f.y-9),f.w,18);
+      g.fillRect(Math.round(f.x+f.w/2),Math.round(f.y-5),8,10);
+      g.fillStyle=rgba(C['--dark'],a*0.7);
+      g.fillRect(Math.round(f.x-f.w/2+5),Math.round(f.y-4),5,5);
+    });
+    /* 抓钩 */
+    const hy=Math.round(S.hook);
+    g.fillStyle=C['--acc'];
+    g.fillRect(S.hookX-16,hy-14,32,4); g.fillRect(S.hookX-16,hy+10,32,4);
+    g.fillRect(S.hookX-16,hy-14,4,28);  g.fillRect(S.hookX+12,hy-14,4,28);
+    if(S.pop>0){ g.strokeStyle=rgba(C['--c3'],S.pop); g.lineWidth=3;
+      const r=20+ (1-S.pop)*16;
+      g.strokeRect(S.hookX-r,hy-r,r*2,r*2); }
+    hud('把游过来的东西框住　抓到 '+S.caught+'　漏掉 '+S.missed);
+  },
+  down(x,y){ S.hook=clamp(y,54,VH-54); this.grab(); },
+  move(x,y){ S.hook=clamp(y,54,VH-54); },
+  up(){},
+  grab(){
+    let best=null,bd=1e9;
+    S.fish.forEach(f=>{
+      if(f.st!==0) return;
+      const d=Math.hypot(f.x-S.hookX,f.y-S.hook);
+      if(d<bd){ bd=d; best=f; }
+    });
+    if(best && Math.abs(best.x-S.hookX)<40 && Math.abs(best.y-S.hook)<34){
+      best.st=1; S.caught++; S.pop=1;
+      tone([523,659,784,988][best.k],0.16,0.16,'square');
+      noiseHit(2600,2,0.04,0.2);
+    }
+  },
+  result(){ return '抓到 '+S.caught+'　漏掉 '+S.missed; }
+};
+
+const MODES={dodge:Dodge, canvas:Canv, maze:Maze, fish:Fish};
+const NAMES={dodge:'A · 安全通道', canvas:'C · 音乐画布', maze:'D · 节奏迷宫', fish:'E · 节拍捕捉'};
+
+/* ---------- HUD ---------- */
+function hud(txt){
+  g.fillStyle=rgba(C['--bg'],0.72); g.fillRect(0,0,VW,30);
+  g.font='600 13px -apple-system,"PingFang SC",sans-serif'; g.textAlign='left';
+  g.fillStyle=C['--dim']; g.fillText(NAMES[MODE],14,20);
+  g.textAlign='center'; g.fillStyle=C['--ink']; g.fillText(txt,VW/2,20);
+  const left=Math.max(0,DEMO_LEN-(S.t-SONG['in']));
+  g.textAlign='right'; g.fillStyle=C['--dim']; g.fillText(Math.ceil(left)+'s',VW-14,20);
+  g.textAlign='left';
+  g.fillStyle=rgba(C['--line'],1); g.fillRect(0,30,VW,2);
+  g.fillStyle=rgba(C['--acc'],0.7);
+  g.fillRect(0,30,VW*clamp((S.t-SONG['in'])/DEMO_LEN,0,1),2);
+}
+
+/* ---------- 循环 ---------- */
+let last=0;
+function frame(ts){
+  raf=requestAnimationFrame(frame);
+  const dt=Math.min((ts-last)/1000||0,0.05); last=ts;
+  if(!S||!S.run) return;
+  S.t=A.ctx.currentTime-S.t0;
+  g.fillStyle=C['--bg']; g.fillRect(0,0,VW,VH);
+  const M=MODES[MODE];
+  M.step(dt); M.draw();
+  if(S.t-SONG['in']>=DEMO_LEN) finish();
+}
+function begin(m){
+  MODE=m; cols(); resize();
+  S={run:false,t:SONG['in'],t0:0,iframe:0,shake:0};
+  MODES[m].init();
+  A.ctx.resume().then(()=>{ startAudio(); S.run=true; scr(null); });
+}
+function finish(){
+  S.run=false; stopAudio();
+  document.getElementById('ovt').textContent=NAMES[MODE];
+  document.getElementById('ovs').textContent=MODES[MODE].result();
+  scr('over');
+}
+function scr(id){
+  ['menu','over'].forEach(s=>document.getElementById(s).classList.toggle('on',s===id));
+}
+
+/* ---------- 输入 ---------- */
+function pos(e){ const r=cv.getBoundingClientRect();
+  return [(e.clientX-r.left)/scale,(e.clientY-r.top)/scale]; }
+cv.addEventListener('pointerdown',e=>{ if(!S||!S.run) return;
+  cv.setPointerCapture(e.pointerId); const[x,y]=pos(e); MODES[MODE].down(x,y); e.preventDefault(); },{passive:false});
+cv.addEventListener('pointermove',e=>{ if(!S||!S.run) return;
+  const[x,y]=pos(e); MODES[MODE].move(x,y); e.preventDefault(); },{passive:false});
+cv.addEventListener('pointerup',e=>{ if(!S||!S.run) return;
+  const[x,y]=pos(e); MODES[MODE].up(x,y); });
+
+document.querySelectorAll('.card').forEach(c=>{
+  c.onclick=()=>{ if(!BUF) return; begin(c.dataset.m); };
+});
+document.getElementById('again').onclick=()=>begin(MODE);
+document.getElementById('back').onclick=()=>{ scr('menu'); };
+
+cols(); resize(); requestAnimationFrame(frame);
+load().then(()=>{
+  document.querySelector('#menu .sub:last-child').textContent='点一张卡片开始';
+}).catch(err=>{
+  document.querySelector('#menu .sub:last-child').innerHTML=
+    '<b style="color:#d69f9f">载入失败：'+String(err.message||err)+'</b><br>需要 atychimania.m4a 和 atychimania.json 在同目录';
+});
+})();
+</script>
+</body>
+</html>
