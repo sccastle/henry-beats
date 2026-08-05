@@ -1,5 +1,5 @@
 {
- "ver": "V0.8.0",
+ "ver": "V0.8.1",
  "songs": [
   {
    "id": "chronos",
@@ -18,6 +18,18 @@
    "title": "ATYCHIMANIA",
    "artist": "imAlter & Gavin Pierce",
    "chart": "atychimania.json"
+  },
+  {
+   "id": "destroid",
+   "title": "DESTROID 8: ANNIHILATE",
+   "artist": "Excision & Far Too Loud",
+   "chart": "destroid.json"
+  },
+  {
+   "id": "tillover",
+   "title": "TILL IT'S OVER",
+   "artist": "Tristam",
+   "chart": "tillover.json"
   }
  ]
 }
