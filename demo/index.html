@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>JHB · 音乐画布（海洋）</title>
+<title>JHB · 海洋</title>
 <style>
   :root{
-    --bg:#1e2733; --bg2:#25303e; --line:#38455a; --dark:#161d26;
-    --ink:#dde2ea; --dim:#8d9aae; --acc:#7fd6c0;
+    --bg:#2f6f96; --bg2:#3a7ea6; --line:#7fb4cf; --dark:#1d4c69;
+    --ink:#eaf6fc; --dim:#b3d6e8; --acc:#ffe08a;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
@@ -39,7 +39,7 @@
 <div id="wrap"><canvas id="cv"></canvas></div>
 
 <div class="scr on" id="menu">
-  <h1>音乐<span>画布</span> · 海洋</h1>
+  <h1>海<span>洋</span></h1>
   <p class="sub">金色圆圈会跟着音乐冒出来，外圈收拢的时候按下去。<br>
     连续点中 3 个，海里的东西就会成群游过来。<br>
     其他地方也能随便点，会荡开白色的浪花。</p>
@@ -128,9 +128,9 @@ async function loadSong(i){
 /* 要按的光点：暖金色，从蓝白海面里跳出来 */
 const PAL=['#f2c66b','#f0a97a','#efc9a0','#f5d98e','#eeb98c','#f2b0a0'];
 /* 装饰浪花：白与淡蓝 */
-const FOAM=['#ffffff','#dbeaf5','#c6dcee','#eaf4fb'];
+const FOAM=['#ffffff','#f2fbff','#e2f2fb','#ffffff'];
 /* 海洋生物：淡蓝白 */
-const SEA=['#cfe6f5','#b9d9ee','#e3f1fa','#a7cde6'];
+const SEA=['#ffffff','#eaf6fc','#d7ecf7','#f4fbff'];
 const SCALE=[0,2,4,7,9,12,14,16,19,21,24,26,28,31,33];
 
 /* ---------- 图形 ---------- */
@@ -143,18 +143,47 @@ function poly(cx,cy,r,n,rot,star){
   }
   g.closePath();
 }
+/* 浪花：全部由弧线和泡沫圈构成，与涟漪同一套语言 */
 const SHP=[
-  m=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot+m.spin*m.age);
-       g.beginPath(); g.rect(-m.r,-m.r,m.r*2,m.r*2); g.restore(); },
-  m=>{ g.beginPath(); g.arc(m.x,m.y,m.r,0,TAU); },
-  m=>poly(m.x,m.y,m.r,3,m.rot+m.spin*m.age),
-  m=>poly(m.x,m.y,m.r,6,m.rot+m.spin*m.age),
-  m=>poly(m.x,m.y,m.r,5,m.rot+m.spin*m.age,1),
-  m=>poly(m.x,m.y,m.r,4,m.rot+Math.PI/4+m.spin*m.age),
-  m=>poly(m.x,m.y,m.r,8,m.rot+m.spin*m.age),
-  m=>poly(m.x,m.y,m.r,6,m.rot+m.spin*m.age,1)
+  /* 0 单道弧浪 */
+  m=>{ g.beginPath();
+       g.arc(m.x,m.y+m.r*0.5,m.r,Math.PI*1.12,Math.PI*1.88); },
+  /* 1 双层浪 */
+  m=>{ g.beginPath();
+       g.arc(m.x,m.y+m.r*0.45,m.r,Math.PI*1.10,Math.PI*1.90);
+       g.moveTo(m.x-m.r*0.62,m.y+m.r*0.10);
+       g.arc(m.x,m.y+m.r*0.62,m.r*0.62,Math.PI*1.18,Math.PI*1.82); },
+  /* 2 卷浪（螺旋） */
+  m=>{ g.beginPath();
+       for(let i=0;i<=34;i++){ const t=i/34;
+         const an=Math.PI*1.05+t*Math.PI*1.45, rr=m.r*(0.30+0.70*t);
+         g[i?'lineTo':'moveTo'](m.x+Math.cos(an)*rr, m.y+m.r*0.4+Math.sin(an)*rr*0.72); } },
+  /* 3 泡沫圈 */
+  m=>{ g.beginPath(); g.arc(m.x,m.y,m.r*0.9,0,TAU); },
+  /* 4 三粒泡沫 */
+  m=>{ g.beginPath();
+       g.arc(m.x-m.r*0.5,m.y+m.r*0.2,m.r*0.34,0,TAU);
+       g.moveTo(m.x+m.r*0.62,m.y-m.r*0.1);
+       g.arc(m.x+m.r*0.28,m.y-m.r*0.1,m.r*0.34,0,TAU);
+       g.moveTo(m.x+m.r*0.30,m.y+m.r*0.52);
+       g.arc(m.x+m.r*0.04,m.y+m.r*0.52,m.r*0.26,0,TAU); },
+  /* 5 波纹三道 */
+  m=>{ g.beginPath();
+       for(let k=0;k<3;k++){
+         const rr=m.r*(0.42+k*0.29);
+         g.moveTo(m.x-rr,m.y+m.r*0.3);
+         g.arc(m.x,m.y+m.r*0.3,rr,Math.PI,TAU); } },
+  /* 6 浪尖 */
+  m=>{ g.beginPath();
+       g.moveTo(m.x-m.r,m.y+m.r*0.42);
+       g.quadraticCurveTo(m.x-m.r*0.34,m.y-m.r*0.72, m.x+m.r*0.22,m.y-m.r*0.16);
+       g.quadraticCurveTo(m.x+m.r*0.60,m.y+m.r*0.16, m.x+m.r,m.y+m.r*0.42); },
+  /* 7 起伏水线 */
+  m=>{ g.beginPath();
+       g.moveTo(m.x-m.r,m.y);
+       g.bezierCurveTo(m.x-m.r*0.5,m.y-m.r*0.6, m.x-m.r*0.1,m.y+m.r*0.5, m.x+m.r*0.35,m.y-m.r*0.12);
+       g.quadraticCurveTo(m.x+m.r*0.7,m.y-m.r*0.42, m.x+m.r,m.y+m.r*0.08); }
 ];
-
 /* ================= 海洋生物 =================
    全部用连续曲线绘制，跟涟漪的圆弧语言一致。
    平移速度慢（穿屏 8–16 秒），无闪烁、无亮度变化。 */
@@ -360,7 +389,7 @@ function step(dt){
   const b=beatNow(), ib=Math.floor(b);
   if(ib!==S.lastB){
     S.lastB=ib;
-    S.ripples.push({x:VW/2,y:VH/2,r:0,life:1,w:2,c:C['--line']});
+    S.ripples.push({x:VW/2,y:VH/2,r:0,life:1,w:2,c:'#ffffff'});
     if(S.ripples.length>26) S.ripples.shift();
   }
   S.cool=Math.max(0,S.cool-dt);
@@ -398,16 +427,16 @@ function step(dt){
 function draw(){
   /* 水体：上深下浅的静态渐变，不随时间变化 */
   const gr=g.createLinearGradient(0,0,0,VH);
-  gr.addColorStop(0,'#1a232e'); gr.addColorStop(1,'#232f3d');
+  gr.addColorStop(0,'#2a6b93'); gr.addColorStop(0.55,'#357da4'); gr.addColorStop(1,'#4291b7');
   g.fillStyle=gr; g.fillRect(0,0,VW,VH);
   /* 气泡 */
   S.bubbles.forEach(p=>{
-    g.strokeStyle=rgba(C['--line'],0.5); g.lineWidth=1;
+    g.strokeStyle=rgba('#ffffff',0.34); g.lineWidth=1;
     g.beginPath(); g.arc(p.x,p.y,p.r,0,TAU); g.stroke();
   });
   /* 拍点涟漪 */
   S.ripples.forEach(r=>{
-    g.strokeStyle=rgba(r.c,clamp(r.life,0,1)*0.28); g.lineWidth=r.w;
+    g.strokeStyle=rgba(r.c,clamp(r.life,0,1)*0.30); g.lineWidth=r.w;
     g.beginPath(); g.arc(r.x,r.y,r.r,0,TAU); g.stroke();
   });
   /* 生物：沉在图形后面 */
@@ -416,8 +445,8 @@ function draw(){
     const age=S.t-c.born, fin=clamp(age/1.2,0,1);
     g.save(); g.translate(c.x,c.y);
     if(c.dir<0) g.scale(-1,1);
-    g.fillStyle=rgba(c.c,0.13*fin);
-    g.strokeStyle=rgba(c.c,0.55*fin);
+    g.fillStyle=rgba(c.c,0.16*fin);
+    g.strokeStyle=rgba(c.c,0.66*fin);
     g.lineWidth=2; g.lineJoin='round'; g.lineCap='round';
     D.draw(c,S.t);
     g.restore();
@@ -442,8 +471,8 @@ function draw(){
       g.beginPath(); g.arc(sp.x,sp.y,rr,0,TAU); g.stroke();
     }
     /* 中心图形：越接近拍点越大 */
-    const gr=SPOT_R*(0.28+0.22*clamp(1-Math.abs(d),0,1));
-    g.strokeStyle=rgba(sp.c,0.75*app*fade); g.lineWidth=2.5;
+    const gr=SPOT_R*(0.30+0.24*clamp(1-Math.abs(d),0,1));
+    g.strokeStyle=rgba(sp.c,0.8*app*fade); g.lineWidth=2.6; g.lineCap='round';
     SHP[sp.kind]({x:sp.x,y:sp.y,r:gr,rot:sp.rot,spin:0,age:0}); g.stroke();
   });
   /* 判定反馈：命中处一圈扩散环 */
@@ -457,7 +486,7 @@ function draw(){
     const t=m.age/m.life, a=clamp(1-t*t,0,1)*(m.alpha||1);
     g.lineWidth=m.lw;
     SHP[m.kind](m);
-    if(m.solid){ g.fillStyle=rgba(m.c,a*m.fillA); g.fill(); }
+    g.lineCap='round';
     g.strokeStyle=rgba(m.c,a*0.92); g.stroke();
     if(m.echo){
       const o={...m,r:m.r*1.3}; SHP[m.kind](o);
@@ -515,18 +544,18 @@ function put(x,y,isTap){
     tier=0;                                    /* 空白处：小而淡的点缀 */
   }
   const P=[
-    {r0:6, grow:30, life:1.9, lw:1.6, solid:false,fillA:0,   echo:false, alpha:0.38},
-    {r0:9, grow:60, life:2.7, lw:2.6, solid:true, fillA:0.13,echo:false, alpha:0.9},
-    {r0:16,grow:112,life:3.6, lw:4.2, solid:true, fillA:0.26,echo:true,  alpha:1}
+    {r0:7, grow:44, life:2.2, lw:2.0, solid:false,fillA:0, echo:false, alpha:0.40},
+    {r0:12,grow:82, life:2.9, lw:2.8, solid:false,fillA:0, echo:false, alpha:0.62},
+    {r0:22,grow:150,life:3.8, lw:4.4, solid:false,fillA:0, echo:true,  alpha:0.92}
   ][tier];
   const ci=Math.floor(Math.random()*PAL.length);
   S.marks.push({x:x,y:y,r:P.r0,grow:P.grow+Math.random()*18,age:0,
     life:P.life+Math.random()*0.6,tier:tier,
-    c: onSpot?best.c:FOAM[Math.floor(Math.random()*FOAM.length)],
-    c2: onSpot?PAL[(ci+2)%PAL.length]:'#ffffff',
+    c: FOAM[Math.floor(Math.random()*FOAM.length)],
+    c2:'#ffffff',
     lw:P.lw,solid:P.solid&&Math.random()<0.75,fillA:P.fillA,echo:P.echo,
     alpha:P.alpha,
-    kind: onSpot?best.kind:Math.floor(Math.random()*SHP.length),
+    kind: Math.floor(Math.random()*SHP.length),
     rot:Math.random()*TAU,spin:(Math.random()-0.5)*(tier===2?0.5:1.0)});
   S.ripples.push({x:x,y:y,r:P.r0,life:1,w:tier===2?3.5:1.4,c:onSpot?best.c:'#ffffff'});
   S.lastPos=[x,y];
