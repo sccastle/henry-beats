@@ -3,33 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>JHB · 四种模式试玩</title>
+<title>JHB · 音乐画布（海洋）</title>
 <style>
   :root{
-    --bg:#242833; --bg2:#2c313e; --bg3:#343a49; --line:#424959; --dark:#1b1e26;
-    --ink:#dde2ea; --dim:#8d95a6; --acc:#7fd6c0;
-    --c0:#8fb4d9; --c1:#93cfa2; --c2:#b79ad6; --c3:#d9c489; --c4:#d69f9f;
+    --bg:#1e2733; --bg2:#25303e; --line:#38455a; --dark:#161d26;
+    --ink:#dde2ea; --dim:#8d9aae; --acc:#7fd6c0;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
     overscroll-behavior:none;user-select:none;
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-  canvas{display:block;touch-action:none;image-rendering:pixelated}
+  canvas{display:block;touch-action:none}
   .scr{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;gap:14px;padding:20px;background:var(--bg);text-align:center;overflow-y:auto}
+    justify-content:center;gap:15px;padding:22px;background:var(--bg);text-align:center}
   .scr.on{display:flex}
-  h1{font-size:19px;margin:0;letter-spacing:.14em;font-weight:600}
-  .sub{color:var(--dim);font-size:12px;line-height:1.75;margin:0;max-width:520px}
-  .cards{display:flex;gap:11px;flex-wrap:wrap;justify-content:center;max-width:660px}
-  .card{width:150px;border:2px solid var(--line);background:var(--bg2);padding:12px 11px;
-    cursor:pointer;transition:border-color .2s ease}
-  .card:active{border-color:var(--acc)}
-  .card b{display:block;font-size:13.5px;margin-bottom:5px;color:var(--acc);font-weight:600}
-  .card span{display:block;font-size:11px;color:var(--dim);line-height:1.65}
+  h1{font-size:20px;margin:0;letter-spacing:.16em;font-weight:600}
+  h1 span{color:var(--acc)}
+  .sub{color:var(--dim);font-size:12.5px;line-height:1.85;margin:0;max-width:470px}
   .btn{appearance:none;border:2px solid var(--acc);background:transparent;color:var(--acc);
-    font:inherit;font-size:14px;padding:9px 30px;cursor:pointer;letter-spacing:.1em}
-  .btn.g{border-color:var(--line);color:var(--dim);font-size:12.5px;padding:8px 22px}
+    font:inherit;font-size:15px;padding:11px 40px;cursor:pointer;letter-spacing:.1em}
+  .btn.g{border-color:var(--line);color:var(--dim);font-size:12.5px;padding:8px 24px}
+  .list{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;max-width:560px}
+  .sg{border:1px solid var(--line);padding:7px 14px;font-size:11.5px;color:var(--dim);cursor:pointer}
+  .sg[aria-checked="true"]{border-color:var(--acc);color:var(--acc)}
+  .zoo{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:560px;
+    font-size:11.5px;color:var(--dim)}
+  .zoo b{color:var(--acc);font-weight:400}
   #rot{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;
     justify-content:center;gap:10px;background:var(--bg);z-index:60;color:var(--dim);font-size:14px}
   body.port #rot{display:flex}
@@ -39,25 +39,22 @@
 <div id="wrap"><canvas id="cv"></canvas></div>
 
 <div class="scr on" id="menu">
-  <h1>四种模式 · 试玩</h1>
-  <p class="sub">同一首曲子（ATYCHIMANIA），四种玩法各 60 秒。<br>
-    全程无闪光、无频闪、无屏幕震动。玩完选一个感觉最好的告诉我。</p>
-  <div class="cards">
-    <div class="card" data-m="dodge"><b>A · 安全通道</b><span>驾驶飞机待在发光的通道里。<br>不用找空隙，跟着线走就行。</span></div>
-    <div class="card" data-m="canvas"><b>C · 音乐画布</b><span>随便点，每一下都生成图案。<br>没有输赢，一首歌画一幅画。</span></div>
-    <div class="card" data-m="maze"><b>D · 节奏迷宫</b><span>踩着拍子走格子。<br>不考反应，考节奏感。</span></div>
-    <div class="card" data-m="fish"><b>E · 节拍捕捉</b><span>东西游过来，按住抓。<br>漏了不要紧，等下一条。</span></div>
-  </div>
-  <p class="sub" style="color:#6f7789">载入中…</p>
+  <h1>音乐<span>画布</span> · 海洋</h1>
+  <p class="sub">跟着鼓点点屏幕，每一下都会荡开涟漪。<br>
+    连续踩准节拍，海里的东西就会游过来。</p>
+  <div class="list" id="songs"></div>
+  <button class="btn" id="go" disabled>载入中…</button>
+  <p class="sub" style="color:#6b7688">没有输赢，也不会失败。玩多久都可以。</p>
 </div>
 
 <div class="scr" id="over">
-  <h1 id="ovt">结束</h1>
+  <h1 id="ovt">画完了</h1>
   <p class="sub" id="ovs"></p>
-  <button class="btn" id="again">再玩一次</button>
-  <button class="btn g" id="back">换个模式</button>
+  <div class="zoo" id="zoo"></div>
+  <button class="btn" id="again">再画一张</button>
+  <button class="btn g" id="back">换首歌</button>
 </div>
-<div id="rot"><b style="color:var(--acc);font-weight:400;font-size:17px">请把屏幕横过来</b><span>这个试玩是横屏的</span></div>
+<div id="rot"><b style="color:var(--acc);font-weight:400;font-size:17px">请把屏幕横过来</b><span>这个模式是横屏的</span></div>
 
 <script>
 (function(){
@@ -66,7 +63,6 @@ const clamp=(v,a,b)=>v<a?a:(v>b?b:v), lerp=(a,b,t)=>a+(b-a)*t;
 const sstep=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
 const TAU=Math.PI*2;
 const VW=640, VH=432;
-const DEMO_LEN=60;                     /* 每个模式跑 60 秒 */
 
 /* ---------- 画布 ---------- */
 const cv=document.getElementById('cv'), g=cv.getContext('2d');
@@ -78,11 +74,11 @@ function resize(){
   const dpr=Math.min(devicePixelRatio||1,2.5);
   cv.style.width=(VW*scale)+'px'; cv.style.height=(VH*scale)+'px';
   cv.width=Math.round(VW*scale*dpr); cv.height=Math.round(VH*scale*dpr);
-  g.setTransform(scale*dpr,0,0,scale*dpr,0,0); g.imageSmoothingEnabled=false;
+  g.setTransform(scale*dpr,0,0,scale*dpr,0,0);
 }
 addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,150));
 let C={};
-function cols(){ ['--bg','--bg2','--bg3','--line','--dark','--ink','--dim','--acc','--c0','--c1','--c2','--c3','--c4']
+function cols(){ ['--bg','--bg2','--line','--dark','--ink','--dim','--acc']
   .forEach(n=>C[n]=getComputedStyle(document.documentElement).getPropertyValue(n).trim()); }
 function rgba(h,a){ return 'rgba('+parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)+','+a+')'; }
 
@@ -92,147 +88,48 @@ function initAudio(){
   if(A.ctx) return;
   const AC=window.AudioContext||window.webkitAudioContext;
   A.ctx=new AC();
-  A.mus=A.ctx.createGain(); A.mus.gain.value=0.75; A.mus.connect(A.ctx.destination);
+  A.mus=A.ctx.createGain(); A.mus.gain.value=0.72; A.mus.connect(A.ctx.destination);
   A.sfx=A.ctx.createGain(); A.sfx.gain.value=0.5;  A.sfx.connect(A.ctx.destination);
-  const n=Math.floor(A.ctx.sampleRate*0.4);
-  const b=A.ctx.createBuffer(1,n,A.ctx.sampleRate), d=b.getChannelData(0);
-  for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
-  A.noise=b;
 }
-function env(t,a,dc,pk,dest){
+function env(t,a,dc,pk){
   const gn=A.ctx.createGain();
   gn.gain.setValueAtTime(0.0001,t);
   gn.gain.linearRampToValueAtTime(pk,t+a);
   gn.gain.exponentialRampToValueAtTime(0.0001,t+a+dc);
-  gn.connect(dest||A.sfx); return gn;
+  gn.connect(A.sfx); return gn;
 }
 function tone(f,dur,pk,type){
   if(!A.ctx) return;
   const t=A.ctx.currentTime+0.001;
   const o=A.ctx.createOscillator(); o.type=type||'sine'; o.frequency.value=f;
-  o.connect(env(t,0.004,dur,pk||0.12)); o.start(t); o.stop(t+dur+0.05);
+  o.connect(env(t,0.005,dur,pk||0.12)); o.start(t); o.stop(t+dur+0.05);
 }
-function noiseHit(f,q,dur,pk){
-  if(!A.ctx) return;
-  const t=A.ctx.currentTime+0.001;
-  const s=A.ctx.createBufferSource(); s.buffer=A.noise;
-  const bp=A.ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f; bp.Q.value=q;
-  s.connect(bp); bp.connect(env(t,0.001,dur,pk)); s.start(t); s.stop(t+dur+0.05);
+function chord(f){                     /* 召唤生物时的一串泛音 */
+  [1,1.5,2,3].forEach((m,i)=>setTimeout(()=>tone(f*m,0.9-i*0.12,0.075,'sine'),i*90));
 }
-let BUF=null, SONG=null;
-async function load(){
+
+/* ---------- 曲库 ---------- */
+let MANIFEST=[], SONG=null, BUF=null, curIdx=0;
+async function loadManifest(){
+  const j=await (await fetch('../manifest.json',{cache:'no-cache'})).json();
+  MANIFEST=j.songs;
+}
+async function loadSong(i){
   initAudio();
-  SONG=await (await fetch('atychimania.json')).json();
-  const ab=await (await fetch('atychimania.m4a')).arrayBuffer();
+  const m=MANIFEST[i];
+  const doc=await (await fetch('../'+m.chart,{cache:'no-cache'})).json();
+  const ab=await (await fetch('../'+doc.audio)).arrayBuffer();
   BUF=await new Promise((res,rej)=>A.ctx.decodeAudioData(ab,res,rej));
+  SONG=doc; curIdx=i;
 }
 
-/* ---------- 通用状态 ---------- */
-let S=null, MODE=null, raf=0;
-function beatNow(){ return (S.t-SONG.beat0)/SONG.spb; }
-function startAudio(){
-  if(S.src){ try{S.src.stop();}catch(e){} }
-  const s=A.ctx.createBufferSource(); s.buffer=BUF; s.connect(A.mus);
-  const when=A.ctx.currentTime+0.15;
-  s.start(when,SONG['in']); s.stop(when+DEMO_LEN+1);
-  S.src=s; S.t0=when-SONG['in'];
-}
-function stopAudio(){ if(S&&S.src){ try{S.src.stop();}catch(e){} S.src=null; } }
+/* ---------- 调色板（同明度带，亮度不跳变） ---------- */
+const PAL=['#8fb4d9','#7fd6c0','#93cfa2','#c3d68f','#d9c489','#d6a87f',
+           '#d69f9f','#d69fc4','#b79ad6','#9f9fd6','#9fc4d6','#a8d6cf'];
+const SCALE=[0,2,4,7,9,12,14,16,19,21,24,26,28,31,33];
 
-/* ================= A · 安全通道 ================= */
-/* 关键改良：不让玩家扫描全屏找空隙，而是把安全区直接画出来 */
-const Dodge={
-  init(){
-    S.px=VW*0.28; S.py=VH/2; S.hits=0; S.frames=0; S.inside=0;
-    S.trail=[]; S.drag=null;
-    /* 通道中心随音乐段落缓慢摆动，宽度随能量收缩 */
-    S.wave=[];
-    for(let i=0;i<4;i++) S.wave.push({a:14+Math.random()*30,f:0.06+Math.random()*0.16,p:Math.random()*TAU});
-    S.bul=[]; S.nextB=0;
-  },
-  lane(t){
-    let y=VH/2;
-    S.wave.forEach(w=>{ y+=Math.sin(t*w.f*TAU+w.p)*w.a; });
-    return clamp(y,90,VH-70);
-  },
-  halfW(t){ return 74-26*sstep((t%16)/16); },   /* 周期性收窄，制造紧张但从不消失 */
-  step(dt){
-    const t=S.t;
-    /* 拖动 */
-    S.py=clamp(S.py,40,VH-40);
-    /* 判定：在通道内就安全 */
-    const cy=this.lane(t), hw=this.halfW(t);
-    S.frames++;
-    const inside=Math.abs(S.py-cy)<hw-10;
-    if(inside) S.inside++;
-    else if(S.iframe<=0){ S.hits++; S.iframe=0.9; S.shake=1; noiseHit(220,1.2,0.2,0.4); }
-    S.iframe=Math.max(0,(S.iframe||0)-dt);
-    S.shake=Math.max(0,(S.shake||0)-dt*2.4);
-    S.trail.push({x:S.px,y:S.py,l:1});
-    if(S.trail.length>26) S.trail.shift();
-    S.trail.forEach(p=>p.l-=dt*1.6);
-    /* 装饰性弹幕：只在通道外飞，不参与判定，纯粹烘托气氛 */
-    S.nextB-=dt;
-    if(S.nextB<=0){
-      S.nextB=0.12;
-      const up=Math.random()<0.5;
-      const cy2=this.lane(t+0.4), hw2=this.halfW(t+0.4);
-      const y = up ? Math.random()*(cy2-hw2-20)+10 : cy2+hw2+20+Math.random()*(VH-cy2-hw2-40);
-      S.bul.push({x:VW+14,y:y,v:170+Math.random()*120,s:5+Math.random()*5});
-    }
-    for(let i=S.bul.length-1;i>=0;i--){
-      const b=S.bul[i]; b.x-=b.v*dt;
-      if(b.x<-20) S.bul.splice(i,1);
-    }
-  },
-  draw(){
-    const t=S.t, sh=S.shake?Math.round(Math.sin(t*40)*0):0;   /* 明确不做屏震 */
-    /* 通道：先画整片危险，再挖出安全带，安全区一目了然 */
-    const pts=[];
-    for(let x=0;x<=VW;x+=8) pts.push([x,this.lane(t+(x-S.px)/260), this.halfW(t+(x-S.px)/260)]);
-    g.fillStyle=rgba(C['--c4'],0.10);
-    g.fillRect(0,0,VW,VH);
-    g.fillStyle=C['--bg'];
-    g.beginPath(); g.moveTo(0,pts[0][1]-pts[0][2]);
-    pts.forEach(p=>g.lineTo(p[0],p[1]-p[2]));
-    for(let i=pts.length-1;i>=0;i--) g.lineTo(pts[i][0],pts[i][1]+pts[i][2]);
-    g.closePath(); g.fill();
-    /* 通道边界：粗描边，几何清晰 */
-    g.strokeStyle=rgba(C['--acc'],0.75); g.lineWidth=3;
-    g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]-p[2]):g.moveTo(p[0],p[1]-p[2])); g.stroke();
-    g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]+p[2]):g.moveTo(p[0],p[1]+p[2])); g.stroke();
-    /* 中心虚线：告诉你「站这儿最稳」 */
-    g.strokeStyle=rgba(C['--acc'],0.3); g.lineWidth=2; g.setLineDash([8,10]);
-    g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); g.stroke();
-    g.setLineDash([]);
-    /* 装饰弹幕 */
-    S.bul.forEach(b=>{ g.fillStyle=rgba(C['--c4'],0.5);
-      g.fillRect(Math.round(b.x),Math.round(b.y),Math.round(b.s*2),Math.round(b.s)); });
-    /* 尾迹 */
-    S.trail.forEach(p=>{ if(p.l<=0) return;
-      g.fillStyle=rgba(C['--acc'],p.l*0.3);
-      g.fillRect(Math.round(p.x-3),Math.round(p.y-2),5,4); });
-    /* 飞机：像素三角 */
-    const px=Math.round(S.px), py=Math.round(S.py), inv=S.iframe>0;
-    g.fillStyle=inv?rgba(C['--acc'],0.4):C['--acc'];
-    g.fillRect(px-12,py-3,18,6); g.fillRect(px+6,py-2,6,4);
-    g.fillRect(px-8,py-8,7,5);   g.fillRect(px-8,py+3,7,5);
-    g.fillStyle=C['--dark']; g.fillRect(px-2,py-2,4,4);
-    hud('待在通道里　安全 '+Math.round(S.inside/Math.max(1,S.frames)*100)+'%　碰壁 '+S.hits+' 次');
-  },
-  down(x,y){ S.drag={x:x,y:y}; },
-  move(x,y){ if(!S.drag) return;
-    S.py=clamp(S.py+(y-S.drag.y)*1.4,40,VH-40); S.drag={x:x,y:y}; },
-  up(){ S.drag=null; },
-  result(){ return '在通道里的时间 '+Math.round(S.inside/Math.max(1,S.frames)*100)+'%　碰壁 '+S.hits+' 次'; }
-};
-
-/* ================= C · 音乐画布 ================= */
-const CPAL=['#8fb4d9','#7fd6c0','#93cfa2','#c3d68f','#d9c489','#d6a87f',
-            '#d69f9f','#d69fc4','#b79ad6','#9f9fd6','#9fc4d6','#a8d6cf'];
-const CSCALE=[0,2,4,7,9,12,14,16,19,21,24,26,28,31,33];
-
-function polyPath(cx,cy,r,n,rot,star){
+/* ---------- 图形 ---------- */
+function poly(cx,cy,r,n,rot,star){
   g.beginPath();
   const N=star?n*2:n;
   for(let i=0;i<N;i++){
@@ -241,317 +138,378 @@ function polyPath(cx,cy,r,n,rot,star){
   }
   g.closePath();
 }
-/* 每个形状给出 path，填充和描边由分层逻辑统一决定 */
 const SHP=[
-  {n:'方',  p:(m,r)=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot+m.spin*m.age);
-      g.beginPath(); g.rect(-r,-r,r*2,r*2); g.restore(); }},
-  {n:'圆',  p:(m,r)=>{ g.beginPath(); g.arc(m.x,m.y,r,0,TAU); }},
-  {n:'三角',p:(m,r)=>polyPath(m.x,m.y,r,3,m.rot+m.spin*m.age)},
-  {n:'六边',p:(m,r)=>polyPath(m.x,m.y,r,6,m.rot+m.spin*m.age)},
-  {n:'星',  p:(m,r)=>polyPath(m.x,m.y,r,5,m.rot+m.spin*m.age,1)},
-  {n:'菱',  p:(m,r)=>polyPath(m.x,m.y,r,4,m.rot+Math.PI/4+m.spin*m.age)},
-  {n:'八边',p:(m,r)=>polyPath(m.x,m.y,r,8,m.rot+m.spin*m.age)},
-  {n:'六星',p:(m,r)=>polyPath(m.x,m.y,r,6,m.rot+m.spin*m.age,1)}
+  m=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot+m.spin*m.age);
+       g.beginPath(); g.rect(-m.r,-m.r,m.r*2,m.r*2); g.restore(); },
+  m=>{ g.beginPath(); g.arc(m.x,m.y,m.r,0,TAU); },
+  m=>poly(m.x,m.y,m.r,3,m.rot+m.spin*m.age),
+  m=>poly(m.x,m.y,m.r,6,m.rot+m.spin*m.age),
+  m=>poly(m.x,m.y,m.r,5,m.rot+m.spin*m.age,1),
+  m=>poly(m.x,m.y,m.r,4,m.rot+Math.PI/4+m.spin*m.age),
+  m=>poly(m.x,m.y,m.r,8,m.rot+m.spin*m.age),
+  m=>poly(m.x,m.y,m.r,6,m.rot+m.spin*m.age,1)
 ];
-/* 只在描边层用的装饰形状 */
-function deco(m,r,a){
-  if(m.kind===8){                      /* 花瓣 */
-    for(let i=0;i<6;i++){ const an=i/6*TAU+m.rot+m.spin*m.age;
-      g.beginPath(); g.arc(m.x+Math.cos(an)*r*0.5,m.y+Math.sin(an)*r*0.5,r*0.5,0,TAU); g.stroke(); }
-  }else if(m.kind===9){                /* 同心 */
-    for(let i=1;i<=3;i++){ g.beginPath(); g.arc(m.x,m.y,r*i/3,0,TAU); g.stroke(); }
-  }
+
+/* ================= 海洋生物 =================
+   全部用连续曲线绘制，跟涟漪的圆弧语言一致。
+   平移速度慢（穿屏 8–16 秒），无闪烁、无亮度变化。 */
+const CREATURES={
+  ray:{ name:'鳐鱼', need:8, size:52, speed:52, life:1,
+    draw(c,t){                                   /* 翅膀上下扇动 */
+      const w=c.s, flap=Math.sin(t*1.5+c.ph)*0.30;
+      g.beginPath();
+      g.moveTo(0,-w*0.10);
+      g.bezierCurveTo(-w*0.55,-w*(0.34+flap), -w*1.05,-w*0.06, -w*1.12, w*0.20);
+      g.bezierCurveTo(-w*0.72, w*0.10, -w*0.30, w*0.24, 0, w*0.34);
+      g.bezierCurveTo( w*0.30, w*0.24,  w*0.72, w*0.10,  w*1.12, w*0.20);
+      g.bezierCurveTo( w*1.05,-w*0.06,  w*0.55,-w*(0.34+flap), 0,-w*0.10);
+      g.closePath();
+      g.fill(); g.stroke();
+      g.beginPath();                              /* 尾 */
+      g.moveTo(0,w*0.30);
+      g.quadraticCurveTo(w*0.06,w*0.85, -w*0.03,w*1.25);
+      g.stroke();
+      g.beginPath(); g.arc(-w*0.24,-w*0.02,w*0.055,0,TAU);
+      g.arc( w*0.24,-w*0.02,w*0.055,0,TAU); g.fill();
+    }},
+  whaleshark:{ name:'鲸鲨', need:16, size:78, speed:34, life:1,
+    draw(c,t){
+      const w=c.s, sway=Math.sin(t*0.9+c.ph)*0.07;
+      g.beginPath();
+      g.moveTo(-w*1.30, w*sway*2);
+      g.bezierCurveTo(-w*0.80,-w*0.42, w*0.35,-w*0.40, w*1.05,-w*0.10);
+      g.bezierCurveTo( w*1.22,-w*0.02, w*1.22, w*0.10, w*1.05, w*0.16);
+      g.bezierCurveTo( w*0.35, w*0.44, -w*0.80, w*0.44, -w*1.30, w*sway*2);
+      g.closePath(); g.fill(); g.stroke();
+      g.beginPath();                              /* 背鳍 */
+      g.moveTo(-w*0.14,-w*0.36);
+      g.quadraticCurveTo(-w*0.02,-w*0.78, w*0.20,-w*0.30); g.stroke();
+      g.beginPath();                              /* 尾鳍 */
+      g.moveTo(-w*1.24,-w*0.04);
+      g.quadraticCurveTo(-w*1.66,-w*0.56, -w*1.72,-w*0.06);
+      g.quadraticCurveTo(-w*1.66, w*0.44, -w*1.24, w*0.08); g.stroke();
+      g.beginPath();                              /* 胸鳍 */
+      g.moveTo(w*0.30, w*0.28);
+      g.quadraticCurveTo(w*0.10, w*0.72, w*0.52, w*0.40); g.stroke();
+      const sp=[[-0.7,-0.16],[-0.4,0.10],[-0.1,-0.20],[0.2,0.14],[0.5,-0.10],
+                [-0.55,0.24],[0.05,0.26],[0.35,-0.24]];
+      sp.forEach(p=>{ g.beginPath(); g.arc(w*p[0],w*p[1],w*0.052,0,TAU); g.fill(); });
+      g.beginPath(); g.arc(w*0.86,-w*0.06,w*0.05,0,TAU); g.fill();
+    }},
+  jelly:{ name:'水母', need:5, size:30, speed:26, life:1, vert:1,
+    draw(c,t){
+      const w=c.s, pu=0.86+Math.sin(t*1.9+c.ph)*0.16;
+      g.beginPath();
+      g.moveTo(-w*pu, 0);
+      g.bezierCurveTo(-w*pu,-w*1.02, w*pu,-w*1.02, w*pu, 0);
+      g.bezierCurveTo(w*0.62,w*0.16, -w*0.62,w*0.16, -w*pu,0);
+      g.closePath(); g.fill(); g.stroke();
+      for(let i=-2;i<=2;i++){
+        const x=i*w*0.34, sw=Math.sin(t*2.1+i*0.7+c.ph)*w*0.20;
+        g.beginPath(); g.moveTo(x, w*0.12);
+        g.bezierCurveTo(x+sw, w*0.62, x-sw, w*1.02, x+sw*0.5, w*1.44);
+        g.stroke();
+      }
+    }},
+  turtle:{ name:'海龟', need:11, size:40, speed:40, life:1,
+    draw(c,t){
+      const w=c.s, pad=Math.sin(t*1.7+c.ph)*0.26;
+      g.beginPath(); g.ellipse(0,0,w*0.92,w*0.68,0,0,TAU); g.fill(); g.stroke();
+      g.beginPath();                              /* 头 */
+      g.ellipse(w*1.02,-w*0.06,w*0.26,w*0.20,0,0,TAU); g.fill(); g.stroke();
+      [[-1,-1],[-1,1]].forEach(s=>{               /* 前后鳍 */
+        g.beginPath();
+        g.moveTo(w*0.34*(-s[0]), w*0.40*s[1]);
+        g.quadraticCurveTo(w*0.70*(-s[0]), w*(0.92+pad)*s[1], w*0.10*(-s[0]), w*(1.02+pad)*s[1]);
+        g.quadraticCurveTo(w*0.16*(-s[0]), w*0.62*s[1], w*0.34*(-s[0]), w*0.40*s[1]);
+        g.fill(); g.stroke();
+      });
+      g.beginPath();                              /* 龟甲纹 */
+      for(let i=0;i<5;i++){ const an=i/5*TAU;
+        g.moveTo(0,0); g.lineTo(Math.cos(an)*w*0.82,Math.sin(an)*w*0.60); }
+      g.stroke();
+      g.beginPath(); g.ellipse(0,0,w*0.44,w*0.32,0,0,TAU); g.stroke();
+    }},
+  fishschool:{ name:'鱼群', need:6, size:11, speed:74, life:1, school:6,
+    draw(c,t){
+      const w=c.s;
+      g.beginPath();
+      g.moveTo(w*1.15,0);
+      g.quadraticCurveTo(0,-w*0.72, -w*0.85,0);
+      g.quadraticCurveTo(0, w*0.72,  w*1.15,0);
+      g.closePath(); g.fill(); g.stroke();
+      g.beginPath();
+      g.moveTo(-w*0.80,0); g.lineTo(-w*1.45,-w*0.52);
+      g.lineTo(-w*1.45,w*0.52); g.closePath(); g.fill(); g.stroke();
+    }},
+  octopus:{ name:'章鱼', need:14, size:34, speed:30, life:1,
+    draw(c,t){
+      const w=c.s;
+      g.beginPath();
+      g.moveTo(-w*0.86,w*0.10);
+      g.bezierCurveTo(-w*0.92,-w*0.92, w*0.92,-w*0.92, w*0.86,w*0.10);
+      g.bezierCurveTo(w*0.50,w*0.34, -w*0.50,w*0.34, -w*0.86,w*0.10);
+      g.closePath(); g.fill(); g.stroke();
+      for(let i=0;i<6;i++){
+        const x=(-2.5+i)*w*0.30, ph=t*2.2+i*0.8+c.ph;
+        g.beginPath(); g.moveTo(x,w*0.24);
+        g.bezierCurveTo(x+Math.sin(ph)*w*0.34, w*0.72,
+                        x-Math.sin(ph)*w*0.30, w*1.02,
+                        x+Math.sin(ph+1)*w*0.26, w*1.36);
+        g.stroke();
+      }
+      g.beginPath(); g.arc(-w*0.26,-w*0.24,w*0.09,0,TAU);
+      g.arc( w*0.26,-w*0.24,w*0.09,0,TAU); g.fill();
+    }}
+};
+const CKEYS=Object.keys(CREATURES);
+
+/* ---------- 状态 ---------- */
+let S=null;
+function beatNow(){ return (S.t-SONG.beat0)/SONG.spb; }
+
+function init(){
+  S={ t:SONG['in'], t0:0, run:false, src:null,
+      marks:[], ripples:[], creatures:[], bubbles:[],
+      taps:0, onbeat:0, combo:0, best:0, cool:0, lastPos:null, lastB:-1,
+      seen:{}, popT:0, popName:'' };
+  for(let i=0;i<16;i++)
+    S.bubbles.push({x:Math.random()*VW,y:Math.random()*VH,r:1+Math.random()*2.5,
+                    v:7+Math.random()*13,ph:Math.random()*TAU});
 }
+function start(){
+  cols(); resize(); init();
+  A.ctx.resume().then(()=>{
+    const s=A.ctx.createBufferSource(); s.buffer=BUF; s.connect(A.mus);
+    const when=A.ctx.currentTime+0.15;
+    s.start(when,SONG['in']); s.stop(when+(SONG.out-SONG['in'])+0.4);
+    S.src=s; S.t0=when-SONG['in']; S.run=true;
+    scr(null);
+  });
+}
+function stop(){ if(S&&S.src){ try{S.src.stop();}catch(e){} S.src=null; } }
 
-const Canv={
-  init(){ S.marks=[]; S.taps=0; S.ripples=[]; S.lastB=-1; S.cool=0; S.lastPos=null; },
-  step(dt){
-    const b=beatNow(), ib=Math.floor(b);
-    if(ib!==S.lastB){ S.lastB=ib; S.ripples.push({r:0,life:1});
-      if(S.ripples.length>3) S.ripples.shift(); }
-    S.ripples.forEach(r=>{ r.r+=250*dt; r.life-=dt*0.8; });
-    S.cool=Math.max(0,S.cool-dt);
-    S.marks.forEach(m=>{ m.age+=dt; m.r+=m.grow*dt; m.grow*=(1-dt*0.6); });
-    for(let i=S.marks.length-1;i>=0;i--) if(S.marks[i].age>S.marks[i].life) S.marks.splice(i,1);
-    if(S.marks.length>70) S.marks.splice(0,S.marks.length-70);
-  },
-  draw(){
-    S.ripples.forEach(r=>{ if(r.life<=0) return;
-      g.strokeStyle=rgba(C['--line'],clamp(r.life,0,1)*0.28); g.lineWidth=2;
-      g.beginPath(); g.arc(VW/2,VH/2,r.r,0,TAU); g.stroke(); });
-    g.fillStyle=rgba(C['--line'],0.28);
-    for(let x=32;x<VW;x+=64) for(let y=32;y<VH;y+=64) g.fillRect(x,y,2,2);
-    /* 小的先画，大的后画 —— 主视觉永远在上层 */
-    S.marks.slice().sort((p,q)=>p.tier-q.tier).forEach(m=>{
-      const t=m.age/m.life, a=clamp(1-t*t,0,1), r=m.r;
-      g.lineWidth=m.lw;
-      if(m.kind>=8){ g.strokeStyle=rgba(m.c,a*0.85); deco(m,r,a); return; }
-      SHP[m.kind].p(m,r);
-      if(m.solid){ g.fillStyle=rgba(m.c,a*m.fillA); g.fill(); }
-      g.strokeStyle=rgba(m.c,a*0.92); g.stroke();
-      if(m.echo){                       /* 主视觉多一圈外轮廓 */
-        SHP[m.kind].p({...m},r*1.30);
-        g.strokeStyle=rgba(m.c2,a*0.3); g.lineWidth=Math.max(1.5,m.lw-1.5); g.stroke();
-      }
+/* ---------- 召唤 ---------- */
+function summon(){
+  /* 连击越高，出现的生物越大只 */
+  const pool=CKEYS.filter(k=>CREATURES[k].need<=S.combo);
+  if(!pool.length) return;
+  pool.sort((a,b)=>CREATURES[b].need-CREATURES[a].need);
+  const k=pool[Math.floor(Math.random()*Math.min(2,pool.length))];
+  const D=CREATURES[k];
+  if(S.creatures.filter(c=>c.k===k).length>=2) return;
+  const dir=Math.random()<0.5?1:-1;
+  const n=D.school||1;
+  for(let i=0;i<n;i++){
+    const y=D.vert ? -40-Math.random()*60 : 70+Math.random()*(VH-160);
+    S.creatures.push({
+      k:k, x: D.vert ? 60+Math.random()*(VW-120)
+                     : (dir>0 ? -D.size*2.4-i*D.size*2.2 : VW+D.size*2.4+i*D.size*2.2),
+      y: y + (n>1 ? (i%3-1)*26 : 0),
+      dir: D.vert?0:dir, s:D.size*(0.86+Math.random()*0.3),
+      c:PAL[Math.floor(Math.random()*PAL.length)],
+      ph:Math.random()*TAU, born:S.t, vy: D.vert? 16+Math.random()*10 : 0,
+      wob:0.5+Math.random()*0.8
     });
-    const tips=['正拍上会画出大图形','','',''];
-    hud('跟着节拍点　已画 '+S.taps+' 笔　'+(S.taps<6?'试试踩在鼓点上':''));
-  },
-  down(x,y){ this.put(x,y,true); },
-  move(x,y){
-    if(!S.lastPos){ S.lastPos=[x,y]; return; }
-    if(Math.hypot(x-S.lastPos[0],y-S.lastPos[1])>90) this.put(x,y,false);
-  },
-  up(){ S.lastPos=null; },
-  put(x,y,isTap){
-    if(S.cool>0) return;
-    S.cool=0.10;                        /* 冷却，防止划一下糊一片 */
-    S.taps++;
-    const b=beatNow();
-    const d1=Math.abs(b-Math.round(b));          /* 离最近正拍 */
-    const d2=Math.abs(b*2-Math.round(b*2))/2;    /* 离最近八分 */
-    /* 三档层次：正拍=大实心，八分=中等，离拍=小点缀 */
-    let tier = d1<0.16 ? 2 : (d2<0.13 ? 1 : 0);
-    if(!isTap && tier===2) tier=1;               /* 划出来的不占主视觉 */
-    const P=[
-      {r0:5,  grow:34, life:2.0, lw:1.8, solid:false, fillA:0,    echo:false, deco:true},
-      {r0:9,  grow:64, life:2.8, lw:2.6, solid:true,  fillA:0.13, echo:false, deco:false},
-      {r0:15, grow:104,life:3.6, lw:4.0, solid:true,  fillA:0.24, echo:true,  deco:false}
-    ][tier];
-    const ci=Math.floor((x/VW)*CPAL.length+(tier===2?0:Math.random()*2))%CPAL.length;
-    const kind = (tier===0 && Math.random()<0.45)
-      ? 8+Math.floor(Math.random()*2)             /* 小图形有机会用装饰形状 */
-      : Math.floor(Math.random()*SHP.length);
-    S.marks.push({
-      x:x, y:y, r:P.r0, grow:P.grow+Math.random()*20, age:0,
-      life:P.life+Math.random()*0.8, tier:tier,
-      c:CPAL[ci], c2:CPAL[(ci+4)%CPAL.length],
-      lw:P.lw, solid:P.solid&&Math.random()<0.75, fillA:P.fillA,
-      echo:P.echo, kind:kind,
-      rot:Math.random()*TAU, spin:(Math.random()-0.5)*(tier===2?0.5:1.1)
-    });
-    S.lastPos=[x,y];
-    const idx=clamp(Math.floor((1-y/VH)*CSCALE.length),0,CSCALE.length-1);
-    const f=261.6*Math.pow(2,CSCALE[idx]/12);
-    tone(f, tier===2?0.8:0.5, tier===2?0.18:(tier===1?0.13:0.09), 'triangle');
-    if(tier===2) tone(f*1.5,0.65,0.075,'sine');
-  },
-  result(){ return '这一首画了 '+S.taps+' 笔'; }
-};
-
-/* ================= D · 节奏迷宫 ================= */
-const Maze={
-  init(){
-    S.gw=9; S.gh=5; S.cell=52;
-    S.ox=(VW-S.gw*S.cell)/2; S.oy=(VH-S.gh*S.cell)/2+16;
-    S.cx=0; S.cy=2; S.goalx=S.gw-1; S.goaly=2;
-    S.walls={}; S.laps=0; S.goodStep=0; S.badStep=0;
-    for(let i=0;i<11;i++){
-      const x=1+Math.floor(Math.random()*(S.gw-2)), y=Math.floor(Math.random()*S.gh);
-      if(x===S.goalx&&y===S.goaly) continue;
-      S.walls[x+','+y]=1;
-    }
-    S.lastBeat=-1; S.flash=0; S.pend=null;
-  },
-  step(dt){
-    const b=beatNow(), ib=Math.floor(b);
-    S.flash=Math.max(0,S.flash-dt*3);
-    if(ib!==S.lastBeat){
-      S.lastBeat=ib;
-      S.flash=1;
-      noiseHit(1400,2,0.03,0.16);
-      if(S.pend){                       /* 在拍点附近按下的方向，到拍才生效 */
-        const nx=S.cx+S.pend[0], ny=S.cy+S.pend[1];
-        if(nx>=0&&nx<S.gw&&ny>=0&&ny<S.gh&&!S.walls[nx+','+ny]){
-          S.cx=nx; S.cy=ny; S.goodStep++;
-          tone(523,0.12,0.12,'square');
-          if(S.cx===S.goalx&&S.cy===S.goaly){
-            S.laps++; S.cx=0; S.cy=2;
-            [660,880,1100].forEach((f,i)=>setTimeout(()=>tone(f,0.2,0.12,'square'),i*80));
-          }
-        }else{ S.badStep++; noiseHit(180,1,0.12,0.25); }
-        S.pend=null;
-      }
-    }
-  },
-  draw(){
-    const b=beatNow(), frac=b-Math.floor(b);
-    for(let y=0;y<S.gh;y++) for(let x=0;x<S.gw;x++){
-      const px=S.ox+x*S.cell, py=S.oy+y*S.cell;
-      const wall=S.walls[x+','+y];
-      g.fillStyle=wall?C['--bg3']:C['--bg2'];
-      g.fillRect(px+2,py+2,S.cell-4,S.cell-4);
-      if(wall){ g.fillStyle=rgba(C['--dim'],0.4);
-        for(let i=0;i<3;i++) g.fillRect(px+10+i*12,py+10,6,S.cell-20); }
-    }
-    /* 终点 */
-    const gx=S.ox+S.goalx*S.cell, gy=S.oy+S.goaly*S.cell;
-    g.strokeStyle=rgba(C['--c3'],0.8); g.lineWidth=3;
-    g.strokeRect(gx+6,gy+6,S.cell-12,S.cell-12);
-    /* 拍点指示：一圈随拍收缩的方框，纯几何 */
-    const r=S.cell*0.5+10-8*sstep(frac);
-    const cx=S.ox+S.cx*S.cell+S.cell/2, cy=S.oy+S.cy*S.cell+S.cell/2;
-    g.strokeStyle=rgba(C['--acc'],0.35+0.3*(1-frac)); g.lineWidth=3;
-    g.strokeRect(cx-r,cy-r,r*2,r*2);
-    /* 角色 */
-    g.fillStyle=C['--acc'];
-    g.fillRect(Math.round(cx-11),Math.round(cy-11),22,22);
-    g.fillStyle=C['--dark']; g.fillRect(Math.round(cx-6),Math.round(cy-4),4,4);
-    g.fillRect(Math.round(cx+2),Math.round(cy-4),4,4);
-    if(S.pend){                          /* 已排队的方向 */
-      g.fillStyle=rgba(C['--c3'],0.75);
-      g.fillRect(Math.round(cx+S.pend[0]*20-4),Math.round(cy+S.pend[1]*20-4),8,8);
-    }
-    hud('踩着拍子滑动移动　到达 '+S.laps+' 次　踏准 '+S.goodStep+' 步');
-  },
-  down(x,y){ S.sx=x; S.sy=y; },
-  move(){}, 
-  up(x,y){
-    const dx=x-S.sx, dy=y-S.sy;
-    if(Math.abs(dx)<16&&Math.abs(dy)<16) return;
-    S.pend = Math.abs(dx)>Math.abs(dy) ? [Math.sign(dx),0] : [0,Math.sign(dy)];
-  },
-  result(){ return '到达终点 '+S.laps+' 次　踏准 '+S.goodStep+' 步　走错 '+S.badStep+' 步'; }
-};
-
-/* ================= E · 节拍捕捉 ================= */
-const Fish={
-  init(){
-    S.fish=[]; S.caught=0; S.missed=0; S.idx=0; S.hook=VH/2; S.hookX=VW*0.22;
-    S.notes=SONG.charts.easy.notes.filter(n=>n.b*SONG.spb<DEMO_LEN+3);
-    S.pop=0;
-  },
-  step(dt){
-    const t=S.t;
-    while(S.idx<S.notes.length){
-      const n=S.notes[S.idx];
-      const at=SONG.beat0+n.b*SONG.spb;
-      if(at-t>2.6) break;
-      S.idx++;
-      S.fish.push({x:VW+26,y:90+((n.l*67+n.b*37)%(VH-190)),at:at,k:n.k,st:0,w:34});
-    }
-    S.fish.forEach(f=>{
-      const left=f.at-t;
-      f.x=S.hookX+left*((VW+26-S.hookX)/2.6);
-      if(f.st===0 && left<-0.45){ f.st=2; S.missed++; }
-    });
-    for(let i=S.fish.length-1;i>=0;i--) if(S.fish[i].x<-60) S.fish.splice(i,1);
-    S.pop=Math.max(0,S.pop-dt*2.4);
-  },
-  draw(){
-    /* 水面波纹：静态横线，不闪 */
-    g.fillStyle=rgba(C['--line'],0.35);
-    for(let y=60;y<VH-40;y+=46) g.fillRect(0,y,VW,2);
-    /* 捕捉线 */
-    g.fillStyle=rgba(C['--acc'],0.5); g.fillRect(S.hookX-2,40,4,VH-90);
-    S.fish.forEach(f=>{
-      const col=[C['--c0'],C['--c1'],C['--c2'],C['--c3']][f.k];
-      if(f.st===1){ g.fillStyle=rgba(col,0.25);
-        g.fillRect(Math.round(f.x-8),Math.round(f.y-8),16,16); return; }
-      const a=f.st===2?0.25:0.9;
-      g.fillStyle=rgba(col,a);
-      g.fillRect(Math.round(f.x-f.w/2),Math.round(f.y-9),f.w,18);
-      g.fillRect(Math.round(f.x+f.w/2),Math.round(f.y-5),8,10);
-      g.fillStyle=rgba(C['--dark'],a*0.7);
-      g.fillRect(Math.round(f.x-f.w/2+5),Math.round(f.y-4),5,5);
-    });
-    /* 抓钩 */
-    const hy=Math.round(S.hook);
-    g.fillStyle=C['--acc'];
-    g.fillRect(S.hookX-16,hy-14,32,4); g.fillRect(S.hookX-16,hy+10,32,4);
-    g.fillRect(S.hookX-16,hy-14,4,28);  g.fillRect(S.hookX+12,hy-14,4,28);
-    if(S.pop>0){ g.strokeStyle=rgba(C['--c3'],S.pop); g.lineWidth=3;
-      const r=20+ (1-S.pop)*16;
-      g.strokeRect(S.hookX-r,hy-r,r*2,r*2); }
-    hud('把游过来的东西框住　抓到 '+S.caught+'　漏掉 '+S.missed);
-  },
-  down(x,y){ S.hook=clamp(y,54,VH-54); this.grab(); },
-  move(x,y){ S.hook=clamp(y,54,VH-54); },
-  up(){},
-  grab(){
-    let best=null,bd=1e9;
-    S.fish.forEach(f=>{
-      if(f.st!==0) return;
-      const d=Math.hypot(f.x-S.hookX,f.y-S.hook);
-      if(d<bd){ bd=d; best=f; }
-    });
-    if(best && Math.abs(best.x-S.hookX)<40 && Math.abs(best.y-S.hook)<34){
-      best.st=1; S.caught++; S.pop=1;
-      tone([523,659,784,988][best.k],0.16,0.16,'square');
-      noiseHit(2600,2,0.04,0.2);
-    }
-  },
-  result(){ return '抓到 '+S.caught+'　漏掉 '+S.missed; }
-};
-
-const MODES={dodge:Dodge, canvas:Canv, maze:Maze, fish:Fish};
-const NAMES={dodge:'A · 安全通道', canvas:'C · 音乐画布', maze:'D · 节奏迷宫', fish:'E · 节拍捕捉'};
-
-/* ---------- HUD ---------- */
-function hud(txt){
-  g.fillStyle=rgba(C['--bg'],0.72); g.fillRect(0,0,VW,30);
-  g.font='600 13px -apple-system,"PingFang SC",sans-serif'; g.textAlign='left';
-  g.fillStyle=C['--dim']; g.fillText(NAMES[MODE],14,20);
-  g.textAlign='center'; g.fillStyle=C['--ink']; g.fillText(txt,VW/2,20);
-  const left=Math.max(0,DEMO_LEN-(S.t-SONG['in']));
-  g.textAlign='right'; g.fillStyle=C['--dim']; g.fillText(Math.ceil(left)+'s',VW-14,20);
-  g.textAlign='left';
-  g.fillStyle=rgba(C['--line'],1); g.fillRect(0,30,VW,2);
-  g.fillStyle=rgba(C['--acc'],0.7);
-  g.fillRect(0,30,VW*clamp((S.t-SONG['in'])/DEMO_LEN,0,1),2);
+  }
+  S.seen[k]=(S.seen[k]||0)+1;
+  S.popName=D.name; S.popT=1.8;
+  chord(196*Math.pow(2,(CKEYS.indexOf(k)%5)/12*3));
 }
 
 /* ---------- 循环 ---------- */
 let last=0;
 function frame(ts){
-  raf=requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
   const dt=Math.min((ts-last)/1000||0,0.05); last=ts;
   if(!S||!S.run) return;
   S.t=A.ctx.currentTime-S.t0;
-  g.fillStyle=C['--bg']; g.fillRect(0,0,VW,VH);
-  const M=MODES[MODE];
-  M.step(dt); M.draw();
-  if(S.t-SONG['in']>=DEMO_LEN) finish();
+  step(dt); draw();
+  if(S.t>=SONG.out) finish();
 }
-function begin(m){
-  MODE=m; cols(); resize();
-  S={run:false,t:SONG['in'],t0:0,iframe:0,shake:0};
-  MODES[m].init();
-  A.ctx.resume().then(()=>{ startAudio(); S.run=true; scr(null); });
-}
-function finish(){
-  S.run=false; stopAudio();
-  document.getElementById('ovt').textContent=NAMES[MODE];
-  document.getElementById('ovs').textContent=MODES[MODE].result();
-  scr('over');
-}
-function scr(id){
-  ['menu','over'].forEach(s=>document.getElementById(s).classList.toggle('on',s===id));
+function step(dt){
+  const b=beatNow(), ib=Math.floor(b);
+  if(ib!==S.lastB){
+    S.lastB=ib;
+    S.ripples.push({x:VW/2,y:VH/2,r:0,life:1,w:2,c:C['--line']});
+    if(S.ripples.length>26) S.ripples.shift();
+  }
+  S.cool=Math.max(0,S.cool-dt);
+  S.popT=Math.max(0,S.popT-dt);
+  S.ripples.forEach(r=>{ r.r+=r.spd||190*dt/dt*0+190*dt; r.life-=dt*0.75; });
+  for(let i=S.ripples.length-1;i>=0;i--) if(S.ripples[i].life<=0) S.ripples.splice(i,1);
+  S.marks.forEach(m=>{ m.age+=dt; m.r+=m.grow*dt; m.grow*=(1-dt*0.6); });
+  for(let i=S.marks.length-1;i>=0;i--) if(S.marks[i].age>S.marks[i].life) S.marks.splice(i,1);
+  if(S.marks.length>60) S.marks.splice(0,S.marks.length-60);
+  S.bubbles.forEach(p=>{
+    p.y-=p.v*dt; p.x+=Math.sin(S.t*0.8+p.ph)*7*dt;
+    if(p.y<-8){ p.y=VH+8; p.x=Math.random()*VW; }
+  });
+  S.creatures.forEach(c=>{
+    const D=CREATURES[c.k];
+    if(D.vert){ c.y+=c.vy*dt; c.x+=Math.sin(S.t*0.7+c.ph)*10*dt; }
+    else{ c.x+=D.speed*c.dir*dt; c.y+=Math.sin(S.t*0.55+c.ph)*13*dt*c.wob; }
+  });
+  for(let i=S.creatures.length-1;i>=0;i--){
+    const c=S.creatures[i];
+    if(c.x<-260||c.x>VW+260||c.y>VH+160) S.creatures.splice(i,1);
+  }
 }
 
-/* ---------- 输入 ---------- */
+function draw(){
+  /* 水体：上深下浅的静态渐变，不随时间变化 */
+  const gr=g.createLinearGradient(0,0,0,VH);
+  gr.addColorStop(0,'#1a232e'); gr.addColorStop(1,'#232f3d');
+  g.fillStyle=gr; g.fillRect(0,0,VW,VH);
+  /* 气泡 */
+  S.bubbles.forEach(p=>{
+    g.strokeStyle=rgba(C['--line'],0.5); g.lineWidth=1;
+    g.beginPath(); g.arc(p.x,p.y,p.r,0,TAU); g.stroke();
+  });
+  /* 拍点涟漪 */
+  S.ripples.forEach(r=>{
+    g.strokeStyle=rgba(r.c,clamp(r.life,0,1)*0.28); g.lineWidth=r.w;
+    g.beginPath(); g.arc(r.x,r.y,r.r,0,TAU); g.stroke();
+  });
+  /* 生物：沉在图形后面 */
+  S.creatures.forEach(c=>{
+    const D=CREATURES[c.k];
+    const age=S.t-c.born, fin=clamp(age/1.2,0,1);
+    g.save(); g.translate(c.x,c.y);
+    if(c.dir<0) g.scale(-1,1);
+    g.fillStyle=rgba(c.c,0.13*fin);
+    g.strokeStyle=rgba(c.c,0.55*fin);
+    g.lineWidth=2; g.lineJoin='round'; g.lineCap='round';
+    D.draw(c,S.t);
+    g.restore();
+  });
+  /* 玩家画的图形：小的先画，大的压上层 */
+  S.marks.slice().sort((p,q)=>p.tier-q.tier).forEach(m=>{
+    const t=m.age/m.life, a=clamp(1-t*t,0,1);
+    g.lineWidth=m.lw;
+    SHP[m.kind](m);
+    if(m.solid){ g.fillStyle=rgba(m.c,a*m.fillA); g.fill(); }
+    g.strokeStyle=rgba(m.c,a*0.92); g.stroke();
+    if(m.echo){
+      const o={...m,r:m.r*1.3}; SHP[m.kind](o);
+      g.strokeStyle=rgba(m.c2,a*0.3); g.lineWidth=Math.max(1.5,m.lw-1.5); g.stroke();
+    }
+  });
+  hud();
+}
+function hud(){
+  g.fillStyle=rgba(C['--bg'],0.62); g.fillRect(0,0,VW,28);
+  g.font='600 13px -apple-system,"PingFang SC",sans-serif';
+  g.textAlign='left'; g.fillStyle=C['--dim'];
+  g.fillText(SONG.title,14,19);
+  g.textAlign='center';
+  g.fillStyle=S.combo>=5?C['--acc']:C['--dim'];
+  g.fillText(S.combo>1?('连击 '+S.combo):'跟着鼓点点屏幕',VW/2,19);
+  g.textAlign='right'; g.fillStyle=C['--dim'];
+  g.fillText(Math.ceil(Math.max(0,SONG.out-S.t))+'s',VW-14,19);
+  g.textAlign='left';
+  g.fillStyle=rgba(C['--line'],1); g.fillRect(0,28,VW,2);
+  g.fillStyle=rgba(C['--acc'],0.65);
+  g.fillRect(0,28,VW*clamp((S.t-SONG['in'])/(SONG.out-SONG['in']),0,1),2);
+  if(S.popT>0){
+    const a=sstep(Math.min(S.popT/0.3,(1.8-S.popT)/0.3));
+    g.textAlign='center';
+    g.font='700 21px -apple-system,"PingFang SC",sans-serif';
+    g.fillStyle=rgba(C['--acc'],a*0.9);
+    g.fillText(S.popName+' 出现了',VW/2,VH-30);
+    g.textAlign='left';
+  }
+}
+
+/* ---------- 落笔 ---------- */
+function put(x,y,isTap){
+  if(S.cool>0) return;
+  S.cool=0.10; S.taps++;
+  const b=beatNow();
+  const d1=Math.abs(b-Math.round(b));
+  const d2=Math.abs(b*2-Math.round(b*2))/2;
+  let tier = d1<0.16 ? 2 : (d2<0.13 ? 1 : 0);
+  if(!isTap && tier===2) tier=1;
+  if(tier===2){                       /* 踩准正拍才累积连击 */
+    S.onbeat++; S.combo++; S.best=Math.max(S.best,S.combo);
+    if(S.combo>=5 && S.combo%5===0) summon();
+  }else if(tier===0){ S.combo=0; }
+  const P=[
+    {r0:5, grow:32, life:2.0, lw:1.8, solid:false,fillA:0,   echo:false},
+    {r0:9, grow:60, life:2.7, lw:2.6, solid:true, fillA:0.13,echo:false},
+    {r0:15,grow:100,life:3.5, lw:4.0, solid:true, fillA:0.24,echo:true }
+  ][tier];
+  const ci=Math.floor((x/VW)*PAL.length+(tier===2?0:Math.random()*2))%PAL.length;
+  S.marks.push({x:x,y:y,r:P.r0,grow:P.grow+Math.random()*18,age:0,
+    life:P.life+Math.random()*0.7,tier:tier,
+    c:PAL[ci],c2:PAL[(ci+4)%PAL.length],
+    lw:P.lw,solid:P.solid&&Math.random()<0.75,fillA:P.fillA,echo:P.echo,
+    kind:Math.floor(Math.random()*SHP.length),
+    rot:Math.random()*TAU,spin:(Math.random()-0.5)*(tier===2?0.5:1.0)});
+  /* 落点荡开一圈涟漪 */
+  S.ripples.push({x:x,y:y,r:P.r0,life:1,w:tier===2?3:1.6,c:PAL[ci]});
+  S.lastPos=[x,y];
+  const idx=clamp(Math.floor((1-y/VH)*SCALE.length),0,SCALE.length-1);
+  const f=261.6*Math.pow(2,SCALE[idx]/12);
+  tone(f,tier===2?0.8:0.5,tier===2?0.17:(tier===1?0.12:0.085),'triangle');
+  if(tier===2) tone(f*1.5,0.62,0.07,'sine');
+}
 function pos(e){ const r=cv.getBoundingClientRect();
   return [(e.clientX-r.left)/scale,(e.clientY-r.top)/scale]; }
 cv.addEventListener('pointerdown',e=>{ if(!S||!S.run) return;
-  cv.setPointerCapture(e.pointerId); const[x,y]=pos(e); MODES[MODE].down(x,y); e.preventDefault(); },{passive:false});
+  cv.setPointerCapture(e.pointerId); const[x,y]=pos(e); put(x,y,true); e.preventDefault(); },{passive:false});
 cv.addEventListener('pointermove',e=>{ if(!S||!S.run) return;
-  const[x,y]=pos(e); MODES[MODE].move(x,y); e.preventDefault(); },{passive:false});
-cv.addEventListener('pointerup',e=>{ if(!S||!S.run) return;
-  const[x,y]=pos(e); MODES[MODE].up(x,y); });
+  const[x,y]=pos(e);
+  if(!S.lastPos){ S.lastPos=[x,y]; return; }
+  if(Math.hypot(x-S.lastPos[0],y-S.lastPos[1])>90) put(x,y,false);
+  e.preventDefault(); },{passive:false});
+cv.addEventListener('pointerup',()=>{ if(S) S.lastPos=null; });
 
-document.querySelectorAll('.card').forEach(c=>{
-  c.onclick=()=>{ if(!BUF) return; begin(c.dataset.m); };
-});
-document.getElementById('again').onclick=()=>begin(MODE);
-document.getElementById('back').onclick=()=>{ scr('menu'); };
+/* ---------- 流程 ---------- */
+function scr(id){ ['menu','over'].forEach(s=>document.getElementById(s).classList.toggle('on',s===id)); }
+function finish(){
+  S.run=false; stop();
+  const rate=S.taps?Math.round(S.onbeat/S.taps*100):0;
+  document.getElementById('ovs').textContent=
+    '画了 '+S.taps+' 笔　踩准 '+S.onbeat+' 笔（'+rate+'%）　最长连击 '+S.best;
+  const z=document.getElementById('zoo');
+  const got=Object.keys(S.seen);
+  z.innerHTML = got.length
+    ? got.map(k=>'<span>'+CREATURES[k].name+' <b>×'+S.seen[k]+'</b></span>').join('')
+    : '<span style="color:#6b7688">这次没有生物出现　—　试试连续踩准 5 个正拍</span>';
+  scr('over');
+}
+function buildSongs(){
+  const el=document.getElementById('songs'); el.innerHTML='';
+  MANIFEST.forEach((m,i)=>{
+    const d=document.createElement('div');
+    d.className='sg'; d.textContent=m.title;
+    d.setAttribute('aria-checked', i===curIdx?'true':'false');
+    d.onclick=async ()=>{
+      const go=document.getElementById('go');
+      go.disabled=true; go.textContent='载入中…';
+      try{ await loadSong(i); buildSongs(); go.textContent='开始'; go.disabled=false; }
+      catch(e){ go.textContent='载入失败'; }
+    };
+    el.appendChild(d);
+  });
+}
+document.getElementById('go').onclick=start;
+document.getElementById('again').onclick=start;
+document.getElementById('back').onclick=()=>{ buildSongs(); scr('menu'); };
 
 cols(); resize(); requestAnimationFrame(frame);
-load().then(()=>{
-  document.querySelector('#menu .sub:last-child').textContent='点一张卡片开始';
-}).catch(err=>{
-  document.querySelector('#menu .sub:last-child').innerHTML=
-    '<b style="color:#d69f9f">载入失败：'+String(err.message||err)+'</b><br>需要 atychimania.m4a 和 atychimania.json 在同目录';
-});
+(async()=>{
+  const go=document.getElementById('go');
+  try{
+    await loadManifest(); await loadSong(0); buildSongs();
+    go.disabled=false; go.textContent='开始';
+  }catch(e){
+    go.textContent='载入失败';
+    document.querySelector('#menu .sub:last-child').innerHTML=
+      '<b style="color:#d69f9f">'+String(e.message||e)+'</b><br>这个页面要放在 demo 文件夹里，从上一级读取歌曲';
+  }
+})();
 })();
 </script>
 </body>
