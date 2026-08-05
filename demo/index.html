@@ -272,6 +272,7 @@ function init(){
   S={ t:SONG['in'], t0:0, run:false, src:null,
       marks:[], ripples:[], creatures:[], bubbles:[],
       taps:0, onbeat:0, combo:0, best:0, cool:0, lastPos:null, lastB:-1,
+      spots:[], nextSpot:0, hit:0, miss:0, judge:null,
       seen:{}, popT:0, popName:'' };
   for(let i=0;i<16;i++)
     S.bubbles.push({x:Math.random()*VW,y:Math.random()*VH,r:1+Math.random()*2.5,
@@ -290,6 +291,26 @@ function start(){
 function stop(){ if(S&&S.src){ try{S.src.stop();}catch(e){} S.src=null; } }
 
 /* ---------- 召唤 ---------- */
+const SPOT_R=40, SPOT_HIT=55, SPOT_WIN=0.28;   /* 半径40(直径80)，热区55，判定±0.28拍 */
+function spawnSpots(){
+  const b=beatNow();
+  /* 每两拍放一个，落在下一个偶数拍上 */
+  let nb=Math.ceil(b/2)*2;
+  while(nb < b+3){
+    if(nb>S.nextSpot){
+      S.nextSpot=nb;
+      const m=40;
+      S.spots.push({
+        b:nb,
+        x:m+SPOT_R+Math.random()*(VW-2*m-2*SPOT_R),
+        y:60+SPOT_R+Math.random()*(VH-120-2*SPOT_R),
+        st:0, c:PAL[Math.floor(Math.random()*PAL.length)],
+        rot:Math.random()*TAU, kind:Math.floor(Math.random()*SHP.length)
+      });
+    }
+    nb+=2;
+  }
+}
 function summon(){
   /* 连击越高，出现的生物越大只 */
   const pool=CKEYS.filter(k=>CREATURES[k].need<=S.combo);
@@ -336,6 +357,16 @@ function step(dt){
   }
   S.cool=Math.max(0,S.cool-dt);
   S.popT=Math.max(0,S.popT-dt);
+  if(S.judge){ S.judge.t-=dt*1.9; if(S.judge.t<=0) S.judge=null; }
+  spawnSpots();
+  for(let i=S.spots.length-1;i>=0;i--){
+    const sp=S.spots[i], d=sp.b-b;
+    if(sp.st===0 && d<-SPOT_WIN){        /* 过了判定窗还没按 */
+      sp.st=2; S.miss++; S.combo=0;
+      S.judge={txt:'',t:0.5,c:C['--dim'],x:sp.x,y:sp.y};
+    }
+    if(d<-1.4) S.spots.splice(i,1);
+  }
   S.ripples.forEach(r=>{ r.r+=r.spd||190*dt/dt*0+190*dt; r.life-=dt*0.75; });
   for(let i=S.ripples.length-1;i>=0;i--) if(S.ripples[i].life<=0) S.ripples.splice(i,1);
   S.marks.forEach(m=>{ m.age+=dt; m.r+=m.grow*dt; m.grow*=(1-dt*0.6); });
@@ -383,9 +414,39 @@ function draw(){
     D.draw(c,S.t);
     g.restore();
   });
+  /* 节拍光点：环从大收到小，收到最小的一刻就是该按的时刻 */
+  const bb=beatNow();
+  S.spots.forEach(sp=>{
+    const d=sp.b-bb;
+    if(sp.st===1) return;
+    if(d>1.15) return;
+    const fade = sp.st===2 ? clamp(1+(d+SPOT_WIN)/1.0,0,1)*0.35 : 1;
+    const app  = clamp((1.15-d)/0.35,0,1);          /* 渐入 */
+    /* 目标圈：固定大小，告诉你按哪 */
+    g.strokeStyle=rgba(sp.c,0.5*app*fade); g.lineWidth=3;
+    g.beginPath(); g.arc(sp.x,sp.y,SPOT_R,0,TAU); g.stroke();
+    g.fillStyle=rgba(sp.c,0.10*app*fade);
+    g.beginPath(); g.arc(sp.x,sp.y,SPOT_R,0,TAU); g.fill();
+    /* 收缩环：半径随时间缩到 SPOT_R，几何倒计时 */
+    if(d>-SPOT_WIN){
+      const rr=SPOT_R+Math.max(0,d)*84;
+      g.strokeStyle=rgba(sp.c,0.85*app*fade); g.lineWidth=4;
+      g.beginPath(); g.arc(sp.x,sp.y,rr,0,TAU); g.stroke();
+    }
+    /* 中心图形：越接近拍点越大 */
+    const gr=SPOT_R*(0.28+0.22*clamp(1-Math.abs(d),0,1));
+    g.strokeStyle=rgba(sp.c,0.75*app*fade); g.lineWidth=2.5;
+    SHP[sp.kind]({x:sp.x,y:sp.y,r:gr,rot:sp.rot,spin:0,age:0}); g.stroke();
+  });
+  /* 判定反馈：命中处一圈扩散环 */
+  if(S.judge){
+    const j=S.judge, a=clamp(j.t,0,1);
+    g.strokeStyle=rgba(j.c,a*0.8); g.lineWidth=3;
+    g.beginPath(); g.arc(j.x,j.y,SPOT_R*(1.1+(1-a)*0.8),0,TAU); g.stroke();
+  }
   /* 玩家画的图形：小的先画，大的压上层 */
   S.marks.slice().sort((p,q)=>p.tier-q.tier).forEach(m=>{
-    const t=m.age/m.life, a=clamp(1-t*t,0,1);
+    const t=m.age/m.life, a=clamp(1-t*t,0,1)*(m.alpha||1);
     g.lineWidth=m.lw;
     SHP[m.kind](m);
     if(m.solid){ g.fillStyle=rgba(m.c,a*m.fillA); g.fill(); }
@@ -404,7 +465,7 @@ function hud(){
   g.fillText(SONG.title,14,19);
   g.textAlign='center';
   g.fillStyle=S.combo>=5?C['--acc']:C['--dim'];
-  g.fillText(S.combo>1?('连击 '+S.combo):'跟着鼓点点屏幕',VW/2,19);
+  g.fillText(S.combo>1?('连击 '+S.combo):'点亮出现的圆圈',VW/2,19);
   g.textAlign='right'; g.fillStyle=C['--dim'];
   g.fillText(Math.ceil(Math.max(0,SONG.out-S.t))+'s',VW-14,19);
   g.textAlign='left';
@@ -424,35 +485,46 @@ function hud(){
 /* ---------- 落笔 ---------- */
 function put(x,y,isTap){
   if(S.cool>0) return;
-  S.cool=0.10; S.taps++;
+  S.cool=0.09; S.taps++;
   const b=beatNow();
-  const d1=Math.abs(b-Math.round(b));
-  const d2=Math.abs(b*2-Math.round(b*2))/2;
-  let tier = d1<0.16 ? 2 : (d2<0.13 ? 1 : 0);
-  if(!isTap && tier===2) tier=1;
-  if(tier===2){                       /* 踩准正拍才累积连击 */
-    S.onbeat++; S.combo++; S.best=Math.max(S.best,S.combo);
-    if(S.combo>=5 && S.combo%5===0) summon();
-  }else if(tier===0){ S.combo=0; }
+  /* 先看有没有打中某个光点 */
+  let best=null,bd=1e9;
+  S.spots.forEach(sp=>{
+    if(sp.st!==0) return;
+    if(Math.abs(sp.b-b)>SPOT_WIN) return;
+    const d=Math.hypot(sp.x-x,sp.y-y);
+    if(d<bd){ bd=d; best=sp; }
+  });
+  const onSpot = best && bd<SPOT_HIT;
+  let tier;
+  if(onSpot){
+    best.st=1; tier=2;
+    S.hit++; S.onbeat++; S.combo++; S.best=Math.max(S.best,S.combo);
+    S.judge={t:1,c:best.c,x:best.x,y:best.y};
+    x=best.x; y=best.y;                       /* 吸附到光点中心，画面更整齐 */
+    if(S.combo>=3 && S.combo%3===0) summon();
+  }else{
+    tier=0;                                    /* 空白处：小而淡的点缀 */
+  }
   const P=[
-    {r0:5, grow:32, life:2.0, lw:1.8, solid:false,fillA:0,   echo:false},
-    {r0:9, grow:60, life:2.7, lw:2.6, solid:true, fillA:0.13,echo:false},
-    {r0:15,grow:100,life:3.5, lw:4.0, solid:true, fillA:0.24,echo:true }
+    {r0:5, grow:26, life:1.7, lw:1.5, solid:false,fillA:0,   echo:false, alpha:0.55},
+    {r0:9, grow:60, life:2.7, lw:2.6, solid:true, fillA:0.13,echo:false, alpha:0.9},
+    {r0:16,grow:112,life:3.6, lw:4.2, solid:true, fillA:0.26,echo:true,  alpha:1}
   ][tier];
   const ci=Math.floor((x/VW)*PAL.length+(tier===2?0:Math.random()*2))%PAL.length;
   S.marks.push({x:x,y:y,r:P.r0,grow:P.grow+Math.random()*18,age:0,
-    life:P.life+Math.random()*0.7,tier:tier,
-    c:PAL[ci],c2:PAL[(ci+4)%PAL.length],
+    life:P.life+Math.random()*0.6,tier:tier,
+    c: onSpot?best.c:PAL[ci], c2:PAL[(ci+4)%PAL.length],
     lw:P.lw,solid:P.solid&&Math.random()<0.75,fillA:P.fillA,echo:P.echo,
-    kind:Math.floor(Math.random()*SHP.length),
+    alpha:P.alpha,
+    kind: onSpot?best.kind:Math.floor(Math.random()*SHP.length),
     rot:Math.random()*TAU,spin:(Math.random()-0.5)*(tier===2?0.5:1.0)});
-  /* 落点荡开一圈涟漪 */
-  S.ripples.push({x:x,y:y,r:P.r0,life:1,w:tier===2?3:1.6,c:PAL[ci]});
+  S.ripples.push({x:x,y:y,r:P.r0,life:1,w:tier===2?3.5:1.4,c:onSpot?best.c:PAL[ci]});
   S.lastPos=[x,y];
   const idx=clamp(Math.floor((1-y/VH)*SCALE.length),0,SCALE.length-1);
   const f=261.6*Math.pow(2,SCALE[idx]/12);
-  tone(f,tier===2?0.8:0.5,tier===2?0.17:(tier===1?0.12:0.085),'triangle');
-  if(tier===2) tone(f*1.5,0.62,0.07,'sine');
+  tone(f, tier===2?0.8:0.4, tier===2?0.18:0.07, 'triangle');
+  if(tier===2) tone(f*1.5,0.62,0.075,'sine');
 }
 function pos(e){ const r=cv.getBoundingClientRect();
   return [(e.clientX-r.left)/scale,(e.clientY-r.top)/scale]; }
@@ -469,14 +541,14 @@ cv.addEventListener('pointerup',()=>{ if(S) S.lastPos=null; });
 function scr(id){ ['menu','over'].forEach(s=>document.getElementById(s).classList.toggle('on',s===id)); }
 function finish(){
   S.run=false; stop();
-  const rate=S.taps?Math.round(S.onbeat/S.taps*100):0;
+  const tot=S.hit+S.miss, rate=tot?Math.round(S.hit/tot*100):0;
   document.getElementById('ovs').textContent=
-    '画了 '+S.taps+' 笔　踩准 '+S.onbeat+' 笔（'+rate+'%）　最长连击 '+S.best;
+    '点中 '+S.hit+' 个　漏掉 '+S.miss+' 个　最长连击 '+S.best+'　总共画了 '+S.taps+' 笔';
   const z=document.getElementById('zoo');
   const got=Object.keys(S.seen);
   z.innerHTML = got.length
     ? got.map(k=>'<span>'+CREATURES[k].name+' <b>×'+S.seen[k]+'</b></span>').join('')
-    : '<span style="color:#6b7688">这次没有生物出现　—　试试连续踩准 5 个正拍</span>';
+    : '<span style="color:#6b7688">这次没有生物出现　—　连续点中 3 个圆圈就会来</span>';
   scr('over');
 }
 function buildSongs(){
