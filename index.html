@@ -173,7 +173,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.8.0';
+const VER='V0.8.1';
 const CACHE_NAME='jhb-'+VER;
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
@@ -1068,11 +1068,21 @@ else{
       document.getElementById('nowsong').textContent=
         MANIFEST[0].title+' · '+MANIFEST[0].artist;
       pb.disabled=false; pb.textContent='开始演奏';
-      if(j.ver && j.ver!==VER){                       /* 线上有新版但本地是缓存的旧页面 */
+      let seen=null;
+      try{ seen=localStorage.getItem('jhb_seen_ver'); }catch(e){}
+      if(j.ver && j.ver!==VER && j.ver!==seen){      /* 线上有新版但本地是缓存的旧页面 */
         const b=document.getElementById('updbar');
         b.textContent='有新版本 '+j.ver+'（当前 '+VER+'）· 点此更新';
         b.style.display='block';
-        b.onclick=()=>location.replace(location.pathname+'?v='+encodeURIComponent(j.ver));
+        b.onclick=async ()=>{
+          b.textContent='正在更新…';
+          try{ localStorage.setItem('jhb_seen_ver',j.ver); }catch(e){}
+          try{                                       /* 先让 SW 丢掉缓存里的旧页面 */
+            const reg=await navigator.serviceWorker.getRegistration();
+            if(reg){ await reg.update(); if(reg.waiting) reg.waiting.postMessage('SKIP_WAITING'); }
+          }catch(e){}
+          location.replace(location.pathname+'?v='+encodeURIComponent(j.ver)+'_'+Date.now());
+        };
       }
     }catch(err){
       pb.textContent='无法载入歌曲';
