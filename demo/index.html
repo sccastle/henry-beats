@@ -40,8 +40,9 @@
 
 <div class="scr on" id="menu">
   <h1>音乐<span>画布</span> · 海洋</h1>
-  <p class="sub">跟着鼓点点屏幕，每一下都会荡开涟漪。<br>
-    连续踩准节拍，海里的东西就会游过来。</p>
+  <p class="sub">金色圆圈会跟着音乐冒出来，外圈收拢的时候按下去。<br>
+    连续点中 3 个，海里的东西就会成群游过来。<br>
+    其他地方也能随便点，会荡开白色的浪花。</p>
   <div class="list" id="songs"></div>
   <button class="btn" id="go" disabled>载入中…</button>
   <p class="sub" style="color:#6b7688">没有输赢，也不会失败。玩多久都可以。</p>
@@ -124,8 +125,12 @@ async function loadSong(i){
 }
 
 /* ---------- 调色板（同明度带，亮度不跳变） ---------- */
-const PAL=['#8fb4d9','#7fd6c0','#93cfa2','#c3d68f','#d9c489','#d6a87f',
-           '#d69f9f','#d69fc4','#b79ad6','#9f9fd6','#9fc4d6','#a8d6cf'];
+/* 要按的光点：暖金色，从蓝白海面里跳出来 */
+const PAL=['#f2c66b','#f0a97a','#efc9a0','#f5d98e','#eeb98c','#f2b0a0'];
+/* 装饰浪花：白与淡蓝 */
+const FOAM=['#ffffff','#dbeaf5','#c6dcee','#eaf4fb'];
+/* 海洋生物：淡蓝白 */
+const SEA=['#cfe6f5','#b9d9ee','#e3f1fa','#a7cde6'];
 const SCALE=[0,2,4,7,9,12,14,16,19,21,24,26,28,31,33];
 
 /* ---------- 图形 ---------- */
@@ -154,7 +159,7 @@ const SHP=[
    全部用连续曲线绘制，跟涟漪的圆弧语言一致。
    平移速度慢（穿屏 8–16 秒），无闪烁、无亮度变化。 */
 const CREATURES={
-  ray:{ name:'鳐鱼', need:8, size:52, speed:52, life:1,
+  ray:{ name:'鳐鱼', need:6, size:66, speed:44, life:1, school:2,
     draw(c,t){                                   /* 翅膀上下扇动 */
       const w=c.s, flap=Math.sin(t*1.5+c.ph)*0.30;
       g.beginPath();
@@ -172,7 +177,7 @@ const CREATURES={
       g.beginPath(); g.arc(-w*0.24,-w*0.02,w*0.055,0,TAU);
       g.arc( w*0.24,-w*0.02,w*0.055,0,TAU); g.fill();
     }},
-  whaleshark:{ name:'鲸鲨', need:16, size:78, speed:34, life:1,
+  whaleshark:{ name:'鲸鲨', need:12, size:165, speed:24, life:1,
     draw(c,t){
       const w=c.s, sway=Math.sin(t*0.9+c.ph)*0.07;
       g.beginPath();
@@ -196,7 +201,7 @@ const CREATURES={
       sp.forEach(p=>{ g.beginPath(); g.arc(w*p[0],w*p[1],w*0.052,0,TAU); g.fill(); });
       g.beginPath(); g.arc(w*0.86,-w*0.06,w*0.05,0,TAU); g.fill();
     }},
-  jelly:{ name:'水母', need:5, size:30, speed:26, life:1, vert:1,
+  jelly:{ name:'水母', need:3, size:36, speed:26, life:1, vert:1, school:5,
     draw(c,t){
       const w=c.s, pu=0.86+Math.sin(t*1.9+c.ph)*0.16;
       g.beginPath();
@@ -211,7 +216,7 @@ const CREATURES={
         g.stroke();
       }
     }},
-  turtle:{ name:'海龟', need:11, size:40, speed:40, life:1,
+  turtle:{ name:'海龟', need:8, size:50, speed:34, life:1, school:2,
     draw(c,t){
       const w=c.s, pad=Math.sin(t*1.7+c.ph)*0.26;
       g.beginPath(); g.ellipse(0,0,w*0.92,w*0.68,0,0,TAU); g.fill(); g.stroke();
@@ -230,7 +235,7 @@ const CREATURES={
       g.stroke();
       g.beginPath(); g.ellipse(0,0,w*0.44,w*0.32,0,0,TAU); g.stroke();
     }},
-  fishschool:{ name:'鱼群', need:6, size:11, speed:74, life:1, school:6,
+  fishschool:{ name:'鱼群', need:4, size:14, speed:68, life:1, school:14,
     draw(c,t){
       const w=c.s;
       g.beginPath();
@@ -242,7 +247,7 @@ const CREATURES={
       g.moveTo(-w*0.80,0); g.lineTo(-w*1.45,-w*0.52);
       g.lineTo(-w*1.45,w*0.52); g.closePath(); g.fill(); g.stroke();
     }},
-  octopus:{ name:'章鱼', need:14, size:34, speed:30, life:1,
+  octopus:{ name:'章鱼', need:10, size:46, speed:28, life:1, school:2,
     draw(c,t){
       const w=c.s;
       g.beginPath();
@@ -291,12 +296,12 @@ function start(){
 function stop(){ if(S&&S.src){ try{S.src.stop();}catch(e){} S.src=null; } }
 
 /* ---------- 召唤 ---------- */
-const SPOT_R=40, SPOT_HIT=55, SPOT_WIN=0.28;   /* 半径40(直径80)，热区55，判定±0.28拍 */
+const SPOT_R=46, SPOT_HIT=72, SPOT_WIN=0.55;   /* 直径92，热区直径144，判定±0.55拍≈±250ms */
 function spawnSpots(){
   const b=beatNow();
   /* 每两拍放一个，落在下一个偶数拍上 */
-  let nb=Math.ceil(b/2)*2;
-  while(nb < b+3){
+  let nb=Math.ceil(b/4)*4;
+  while(nb < b+5){
     if(nb>S.nextSpot){
       S.nextSpot=nb;
       const m=40;
@@ -308,27 +313,30 @@ function spawnSpots(){
         rot:Math.random()*TAU, kind:Math.floor(Math.random()*SHP.length)
       });
     }
-    nb+=2;
+    nb+=4;
   }
 }
 function summon(){
+  if(S.creatures.length>40) return;
   /* 连击越高，出现的生物越大只 */
   const pool=CKEYS.filter(k=>CREATURES[k].need<=S.combo);
   if(!pool.length) return;
   pool.sort((a,b)=>CREATURES[b].need-CREATURES[a].need);
   const k=pool[Math.floor(Math.random()*Math.min(2,pool.length))];
   const D=CREATURES[k];
-  if(S.creatures.filter(c=>c.k===k).length>=2) return;
+  if(S.creatures.filter(c=>c.k===k).length>=(D.school||1)*2) return;
   const dir=Math.random()<0.5?1:-1;
   const n=D.school||1;
   for(let i=0;i<n;i++){
-    const y=D.vert ? -40-Math.random()*60 : 70+Math.random()*(VH-160);
+    const marg=Math.min(D.size*0.85, VH*0.32);
+    const y=D.vert ? -40-Math.random()*80
+                   : marg+Math.random()*Math.max(24,VH-56-marg*2);
     S.creatures.push({
-      k:k, x: D.vert ? 60+Math.random()*(VW-120)
-                     : (dir>0 ? -D.size*2.4-i*D.size*2.2 : VW+D.size*2.4+i*D.size*2.2),
-      y: y + (n>1 ? (i%3-1)*26 : 0),
+      k:k, x: D.vert ? 50+Math.random()*(VW-100)
+                     : (dir>0 ? -D.size*1.7-i*D.size*1.4 : VW+D.size*1.7+i*D.size*1.4),
+      y: y + (n>1 ? ((i%4)-1.5)*32 : 0),
       dir: D.vert?0:dir, s:D.size*(0.86+Math.random()*0.3),
-      c:PAL[Math.floor(Math.random()*PAL.length)],
+      c:SEA[Math.floor(Math.random()*SEA.length)],
       ph:Math.random()*TAU, born:S.t, vy: D.vert? 16+Math.random()*10 : 0,
       wob:0.5+Math.random()*0.8
     });
@@ -365,7 +373,7 @@ function step(dt){
       sp.st=2; S.miss++; S.combo=0;
       S.judge={txt:'',t:0.5,c:C['--dim'],x:sp.x,y:sp.y};
     }
-    if(d<-1.4) S.spots.splice(i,1);
+    if(d<-1.8) S.spots.splice(i,1);
   }
   S.ripples.forEach(r=>{ r.r+=r.spd||190*dt/dt*0+190*dt; r.life-=dt*0.75; });
   for(let i=S.ripples.length-1;i>=0;i--) if(S.ripples[i].life<=0) S.ripples.splice(i,1);
@@ -383,7 +391,7 @@ function step(dt){
   });
   for(let i=S.creatures.length-1;i>=0;i--){
     const c=S.creatures[i];
-    if(c.x<-260||c.x>VW+260||c.y>VH+160) S.creatures.splice(i,1);
+    if(c.x<-560||c.x>VW+560||c.y>VH+220) S.creatures.splice(i,1);
   }
 }
 
@@ -419,9 +427,9 @@ function draw(){
   S.spots.forEach(sp=>{
     const d=sp.b-bb;
     if(sp.st===1) return;
-    if(d>1.15) return;
+    if(d>2.2) return;
     const fade = sp.st===2 ? clamp(1+(d+SPOT_WIN)/1.0,0,1)*0.35 : 1;
-    const app  = clamp((1.15-d)/0.35,0,1);          /* 渐入 */
+    const app  = clamp((2.2-d)/0.5,0,1);            /* 渐入 */
     /* 目标圈：固定大小，告诉你按哪 */
     g.strokeStyle=rgba(sp.c,0.5*app*fade); g.lineWidth=3;
     g.beginPath(); g.arc(sp.x,sp.y,SPOT_R,0,TAU); g.stroke();
@@ -429,7 +437,7 @@ function draw(){
     g.beginPath(); g.arc(sp.x,sp.y,SPOT_R,0,TAU); g.fill();
     /* 收缩环：半径随时间缩到 SPOT_R，几何倒计时 */
     if(d>-SPOT_WIN){
-      const rr=SPOT_R+Math.max(0,d)*84;
+      const rr=SPOT_R+Math.max(0,d)*52;
       g.strokeStyle=rgba(sp.c,0.85*app*fade); g.lineWidth=4;
       g.beginPath(); g.arc(sp.x,sp.y,rr,0,TAU); g.stroke();
     }
@@ -507,19 +515,20 @@ function put(x,y,isTap){
     tier=0;                                    /* 空白处：小而淡的点缀 */
   }
   const P=[
-    {r0:5, grow:26, life:1.7, lw:1.5, solid:false,fillA:0,   echo:false, alpha:0.55},
+    {r0:6, grow:30, life:1.9, lw:1.6, solid:false,fillA:0,   echo:false, alpha:0.38},
     {r0:9, grow:60, life:2.7, lw:2.6, solid:true, fillA:0.13,echo:false, alpha:0.9},
     {r0:16,grow:112,life:3.6, lw:4.2, solid:true, fillA:0.26,echo:true,  alpha:1}
   ][tier];
-  const ci=Math.floor((x/VW)*PAL.length+(tier===2?0:Math.random()*2))%PAL.length;
+  const ci=Math.floor(Math.random()*PAL.length);
   S.marks.push({x:x,y:y,r:P.r0,grow:P.grow+Math.random()*18,age:0,
     life:P.life+Math.random()*0.6,tier:tier,
-    c: onSpot?best.c:PAL[ci], c2:PAL[(ci+4)%PAL.length],
+    c: onSpot?best.c:FOAM[Math.floor(Math.random()*FOAM.length)],
+    c2: onSpot?PAL[(ci+2)%PAL.length]:'#ffffff',
     lw:P.lw,solid:P.solid&&Math.random()<0.75,fillA:P.fillA,echo:P.echo,
     alpha:P.alpha,
     kind: onSpot?best.kind:Math.floor(Math.random()*SHP.length),
     rot:Math.random()*TAU,spin:(Math.random()-0.5)*(tier===2?0.5:1.0)});
-  S.ripples.push({x:x,y:y,r:P.r0,life:1,w:tier===2?3.5:1.4,c:onSpot?best.c:PAL[ci]});
+  S.ripples.push({x:x,y:y,r:P.r0,life:1,w:tier===2?3.5:1.4,c:onSpot?best.c:'#ffffff'});
   S.lastPos=[x,y];
   const idx=clamp(Math.floor((1-y/VH)*SCALE.length),0,SCALE.length-1);
   const f=261.6*Math.pow(2,SCALE[idx]/12);
