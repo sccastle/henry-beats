@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>JHB · 画板</title>
+<style>
+  :root{
+    --bg:#20242e; --bg2:#282d3a; --line:#3d4453;
+    --ink:#e6eaf2; --dim:#93a0b5; --acc:#7fd6c0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+    overscroll-behavior:none;user-select:none;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none}
+  .scr{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:15px;padding:22px;background:var(--bg);text-align:center}
+  .scr.on{display:flex}
+  h1{font-size:21px;margin:0;letter-spacing:.16em;font-weight:600}
+  h1 span{color:var(--acc)}
+  .sub{color:var(--dim);font-size:12.5px;line-height:1.85;margin:0;max-width:470px}
+  .btn{appearance:none;border:2px solid var(--acc);background:transparent;color:var(--acc);
+    font:inherit;font-size:15px;padding:11px 40px;cursor:pointer;letter-spacing:.1em}
+  .btn.g{border-color:var(--line);color:var(--dim);font-size:12.5px;padding:8px 24px}
+  .list{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;max-width:560px}
+  .sg{border:1px solid var(--line);padding:7px 14px;font-size:11.5px;color:var(--dim);cursor:pointer}
+  .sg[aria-checked="true"]{border-color:var(--acc);color:var(--acc)}
+  #rot{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:10px;background:var(--bg);z-index:60;color:var(--dim);font-size:14px}
+  body.port #rot{display:flex}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+
+<div class="scr on" id="menu">
+  <h1>画<span>板</span></h1>
+  <p class="sub">手指划到哪里，图形就长在哪里。<br>
+    颜色和形状会一直变，跟着音乐点会更有节奏。<br>
+    没有输赢，画满一首歌为止。</p>
+  <div class="list" id="songs"></div>
+  <button class="btn" id="go" disabled>载入中…</button>
+  <button class="btn g" id="home2">回到主菜单</button>
+  <p class="sub" style="color:#6b7688">三根手指一起划过屏幕，可以清空重画</p>
+</div>
+
+<div class="scr" id="over">
+  <h1>画完了</h1>
+  <p class="sub" id="ovs"></p>
+  <button class="btn" id="again">再画一张</button>
+  <button class="btn g" id="back">换首歌</button>
+  <button class="btn g" id="home">回到主菜单</button>
+</div>
+<div id="rot"><b style="color:var(--acc);font-weight:400;font-size:17px">请把屏幕横过来</b><span>这个模式是横屏的</span></div>
+
+<script>
+(function(){
+'use strict';
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const sstep=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
+const TAU=Math.PI*2;
+const VW=640, VH=432;
+
+const cv=document.getElementById('cv'), g=cv.getContext('2d');
+let scale=1;
+function resize(){
+  const W=innerWidth,H=innerHeight;
+  document.body.classList.toggle('port',H>W*1.02);
+  scale=Math.min(W/VW,H/VH);
+  const dpr=Math.min(devicePixelRatio||1,2.5);
+  cv.style.width=(VW*scale)+'px'; cv.style.height=(VH*scale)+'px';
+  cv.width=Math.round(VW*scale*dpr); cv.height=Math.round(VH*scale*dpr);
+  g.setTransform(scale*dpr,0,0,scale*dpr,0,0);
+}
+addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,150));
+let C={};
+function cols(){ ['--bg','--bg2','--line','--ink','--dim','--acc']
+  .forEach(n=>C[n]=getComputedStyle(document.documentElement).getPropertyValue(n).trim()); }
+function rgba(h,a){ return 'rgba('+parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)+','+a+')'; }
+
+/* ---------- 音频 ---------- */
+const A={};
+function initAudio(){
+  if(A.ctx) return;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  A.ctx=new AC();
+  A.mus=A.ctx.createGain(); A.mus.gain.value=0.72; A.mus.connect(A.ctx.destination);
+  A.sfx=A.ctx.createGain(); A.sfx.gain.value=0.45; A.sfx.connect(A.ctx.destination);
+}
+function tone(f,dur,pk,type){
+  if(!A.ctx) return;
+  const t=A.ctx.currentTime+0.001;
+  const o=A.ctx.createOscillator(); o.type=type||'triangle'; o.frequency.value=f;
+  const gn=A.ctx.createGain();
+  gn.gain.setValueAtTime(0.0001,t);
+  gn.gain.linearRampToValueAtTime(pk||0.1,t+0.006);
+  gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(gn); gn.connect(A.sfx); o.start(t); o.stop(t+dur+0.05);
+}
+
+let MANIFEST=[], SONG=null, BUF=null, curIdx=0;
+async function loadManifest(){
+  const j=await (await fetch('manifest.json',{cache:'no-cache'})).json();
+  MANIFEST=j.songs;
+}
+async function loadSong(i){
+  initAudio();
+  const m=MANIFEST[i];
+  const doc=await (await fetch(m.chart,{cache:'no-cache'})).json();
+  const ab=await (await fetch(doc.audio)).arrayBuffer();
+  BUF=await new Promise((res,rej)=>A.ctx.decodeAudioData(ab,res,rej));
+  SONG=doc; curIdx=i;
+}
+
+/* ---------- 24 色，跨越整个色相环 ---------- */
+const PAL=[];
+for(let i=0;i<24;i++){
+  const h=i/24*360, s=[62,72,58][i%3], l=[62,68,56][(i+1)%3];
+  PAL.push('hsl('+h.toFixed(0)+','+s+'%,'+l+'%)');
+}
+function hsla(c,a){ return c.replace('hsl(','hsla(').replace(')',','+a+')'); }
+const SCALE=[0,2,4,7,9,12,14,16,19,21,24,26,28,31,33,36];
+
+/* ---------- 16 种形状 ---------- */
+function poly(cx,cy,r,n,rot,star,inner){
+  g.beginPath();
+  const N=star?n*2:n;
+  for(let i=0;i<N;i++){
+    const an=i/N*TAU+rot, rr=star&&(i%2)?r*(inner||0.46):r;
+    g[i?'lineTo':'moveTo'](cx+Math.cos(an)*rr, cy+Math.sin(an)*rr);
+  }
+  g.closePath();
+}
+const SHP=[
+  m=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot);
+       g.beginPath(); g.rect(-m.r,-m.r,m.r*2,m.r*2); g.restore(); },
+  m=>{ g.beginPath(); g.arc(m.x,m.y,m.r,0,TAU); },
+  m=>poly(m.x,m.y,m.r,3,m.rot),
+  m=>poly(m.x,m.y,m.r,5,m.rot),
+  m=>poly(m.x,m.y,m.r,6,m.rot),
+  m=>poly(m.x,m.y,m.r,8,m.rot),
+  m=>poly(m.x,m.y,m.r,5,m.rot,1,0.45),        /* 五角星 */
+  m=>poly(m.x,m.y,m.r,6,m.rot,1,0.55),        /* 六角星 */
+  m=>poly(m.x,m.y,m.r,12,m.rot,1,0.72),       /* 齿轮 */
+  m=>poly(m.x,m.y,m.r,4,m.rot+Math.PI/4),     /* 菱 */
+  m=>{ g.save(); g.translate(m.x,m.y); g.rotate(m.rot);
+       g.beginPath(); g.ellipse(0,0,m.r,m.r*0.55,0,0,TAU); g.restore(); },
+  m=>{ g.beginPath();                          /* 心 */
+       const r=m.r;
+       g.moveTo(m.x,m.y+r*0.72);
+       g.bezierCurveTo(m.x-r*1.3,m.y-r*0.15, m.x-r*0.5,m.y-r*1.0, m.x,m.y-r*0.34);
+       g.bezierCurveTo(m.x+r*0.5,m.y-r*1.0, m.x+r*1.3,m.y-r*0.15, m.x,m.y+r*0.72);
+       g.closePath(); },
+  m=>{ g.beginPath();                          /* 水滴 */
+       const r=m.r;
+       g.moveTo(m.x,m.y-r);
+       g.bezierCurveTo(m.x+r*0.9,m.y-r*0.1, m.x+r*0.7,m.y+r*0.9, m.x,m.y+r*0.9);
+       g.bezierCurveTo(m.x-r*0.7,m.y+r*0.9, m.x-r*0.9,m.y-r*0.1, m.x,m.y-r);
+       g.closePath(); },
+  m=>{ g.beginPath();                          /* 花瓣 */
+       for(let i=0;i<5;i++){ const an=i/5*TAU+m.rot;
+         g.moveTo(m.x+Math.cos(an)*m.r*0.52+m.r*0.42, m.y+Math.sin(an)*m.r*0.52);
+         g.arc(m.x+Math.cos(an)*m.r*0.52, m.y+Math.sin(an)*m.r*0.52, m.r*0.42,0,TAU); } },
+  m=>{ g.beginPath();                          /* 同心 */
+       for(let i=1;i<=3;i++){ const rr=m.r*i/3;
+         g.moveTo(m.x+rr,m.y); g.arc(m.x,m.y,rr,0,TAU); } },
+  m=>{ g.beginPath();                          /* 螺旋 */
+       for(let i=0;i<=48;i++){ const t=i/48, an=t*TAU*2+m.rot, rr=m.r*t;
+         g[i?'lineTo':'moveTo'](m.x+Math.cos(an)*rr, m.y+Math.sin(an)*rr); } }
+];
+
+/* ---------- 状态 ---------- */
+let S=null;
+function beatNow(){ return (S.t-SONG.beat0)/SONG.spb; }
+function init(){
+  S={ t:SONG['in'], t0:0, run:false, src:null,
+      marks:[], taps:0, cool:0, last:null, lastB:-1,
+      hue:Math.floor(Math.random()*PAL.length), shp:0, pulse:0 };
+}
+function start(){
+  cols(); resize(); init();
+  A.ctx.resume().then(()=>{
+    const s=A.ctx.createBufferSource(); s.buffer=BUF; s.connect(A.mus);
+    const when=A.ctx.currentTime+0.15;
+    s.start(when,SONG['in']); s.stop(when+(SONG.out-SONG['in'])+0.4);
+    S.src=s; S.t0=when-SONG['in']; S.run=true; scr(null);
+  });
+}
+function stop(){ if(S&&S.src){ try{S.src.stop();}catch(e){} S.src=null; } }
+
+let last=0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  const dt=Math.min((ts-last)/1000||0,0.05); last=ts;
+  if(!S||!S.run) return;
+  S.t=A.ctx.currentTime-S.t0;
+  step(dt); draw();
+  if(S.t>=SONG.out) finish();
+}
+function step(dt){
+  const b=beatNow(), ib=Math.floor(b);
+  if(ib!==S.lastB){ S.lastB=ib; S.pulse=1; }
+  S.pulse=Math.max(0,S.pulse-dt*2.6);
+  if(clearFx>0) clearFx=Math.max(0,clearFx-dt*1.6);
+  S.cool=Math.max(0,S.cool-dt);
+  S.marks.forEach(m=>{ m.age+=dt; m.r+=m.grow*dt; m.grow*=(1-dt*0.7); m.rot+=m.spin*dt; });
+  for(let i=S.marks.length-1;i>=0;i--) if(S.marks[i].age>S.marks[i].life) S.marks.splice(i,1);
+  if(S.marks.length>150) S.marks.splice(0,S.marks.length-150);
+}
+function draw(){
+  g.fillStyle=C['--bg']; g.fillRect(0,0,VW,VH);
+  /* 底纹：随拍呼吸的点阵，低对比 */
+  const d=2+Math.round(S.pulse*2);
+  g.fillStyle=rgba(C['--line'],0.5);
+  for(let x=28;x<VW;x+=56) for(let y=28;y<VH;y+=56) g.fillRect(x,y,d,d);
+  /* 小的先画，大的压上层 */
+  S.marks.slice().sort((p,q)=>p.r-q.r).forEach(m=>{
+    const t=m.age/m.life, a=clamp(1-t*t,0,1);
+    g.lineWidth=m.lw; g.lineJoin='round'; g.lineCap='round';
+    SHP[m.kind](m);
+    if(m.solid){ g.fillStyle=hsla(m.c,a*m.fillA); g.fill(); }
+    g.strokeStyle=hsla(m.c,a*0.92); g.stroke();
+    if(m.echo){
+      const o={x:m.x,y:m.y,r:m.r*1.28,rot:m.rot*0.7};
+      SHP[m.kind](o);
+      g.strokeStyle=hsla(m.c2,a*0.34); g.lineWidth=Math.max(1.2,m.lw-1.6); g.stroke();
+    }
+  });
+  if(clearFx>0){
+    const a=clamp(clearFx,0,1);
+    g.strokeStyle=rgba(C['--acc'],a*0.5); g.lineWidth=3;
+    g.beginPath(); g.arc(VW/2,VH/2,(1-a)*VW*0.75,0,TAU); g.stroke();
+  }
+  hud();
+}
+function hud(){
+  g.fillStyle=rgba(C['--bg'],0.6); g.fillRect(0,0,VW,26);
+  g.font='600 12.5px -apple-system,"PingFang SC",sans-serif';
+  g.textAlign='left'; g.fillStyle=C['--dim']; g.fillText(SONG.title,14,18);
+  g.textAlign='center'; g.fillText('已画 '+S.taps+' 笔',VW/2,18);
+  g.textAlign='right'; g.fillText(Math.ceil(Math.max(0,SONG.out-S.t))+'s',VW-14,18);
+  g.textAlign='left';
+  g.fillStyle=rgba(C['--line'],1); g.fillRect(0,26,VW,2);
+  g.fillStyle=rgba(C['--acc'],0.6);
+  g.fillRect(0,26,VW*clamp((S.t-SONG['in'])/(SONG.out-SONG['in']),0,1),2);
+}
+
+/* ---------- 落笔 ---------- */
+function put(x,y,isTap){
+  if(S.cool>0) return;
+  S.cool=isTap?0.05:0.035;
+  S.taps++;
+  const b=beatNow();
+  const onBeat=Math.abs(b-Math.round(b))<0.18;
+  /* 颜色沿色相环缓慢推进，划一条线就是一道彩虹 */
+  S.hue=(S.hue+1+(onBeat?2:0))%PAL.length;
+  S.shp=(S.shp+(isTap?1+Math.floor(Math.random()*3):0))%SHP.length;
+  const big=isTap||onBeat;
+  S.marks.push({
+    x:x, y:y,
+    r: big?14:7,
+    grow:(big?86:44)+Math.random()*30,
+    age:0, life:(big?3.2:2.2)+Math.random()*0.9,
+    c:PAL[S.hue], c2:PAL[(S.hue+8)%PAL.length],
+    lw: big?3.4:2.0,
+    solid:Math.random()<0.55, fillA: big?0.22:0.14,
+    echo:onBeat, kind:S.shp,
+    rot:Math.random()*TAU, spin:(Math.random()-0.5)*1.4
+  });
+  S.last=[x,y];
+  const idx=clamp(Math.floor((1-y/VH)*SCALE.length),0,SCALE.length-1);
+  const f=261.6*Math.pow(2,SCALE[idx]/12);
+  tone(f, big?0.55:0.32, big?0.13:0.075, onBeat?'square':'triangle');
+}
+function pos(e){ const r=cv.getBoundingClientRect();
+  return [(e.clientX-r.left)/scale,(e.clientY-r.top)/scale]; }
+const active={};        /* pointerId -> {x0,y0,dist} */
+let clearFx=0;          /* 清空后的一圈反馈 */
+function clearCheck(){
+  const ids=Object.keys(active);
+  if(ids.length<3) return;                    /* 必须三指同时在屏幕上 */
+  const moved=ids.filter(k=>active[k].dist>90);
+  if(moved.length>=3 && S.marks.length){
+    S.marks.length=0;
+    clearFx=1;
+    ids.forEach(k=>{ active[k].dist=0; });   /* 防止连续触发 */
+    tone(392,0.5,0.10,'sine'); tone(523,0.5,0.08,'sine');
+  }
+}
+cv.addEventListener('pointerdown',e=>{
+  if(!S||!S.run) return;
+  cv.setPointerCapture(e.pointerId);
+  const[x,y]=pos(e);
+  active[e.pointerId]={x0:x,y0:y,dist:0};
+  if(Object.keys(active).length>=3) return;   /* 三指起手不落笔 */
+  put(x,y,true); e.preventDefault();
+},{passive:false});
+cv.addEventListener('pointermove',e=>{
+  if(!S||!S.run||!active[e.pointerId]) return;
+  const[x,y]=pos(e);
+  const a=active[e.pointerId];
+  a.dist=Math.hypot(x-a.x0,y-a.y0);
+  if(Object.keys(active).length>=3){ clearCheck(); e.preventDefault(); return; }
+  if(!S.last){ S.last=[x,y]; return; }
+  if(Math.hypot(x-S.last[0],y-S.last[1])>26) put(x,y,false);   /* 划线连续出图形 */
+  e.preventDefault();
+},{passive:false});
+const up=e=>{ delete active[e.pointerId]; if(S) S.last=null; };
+cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+
+/* ---------- 流程 ---------- */
+function scr(id){ ['menu','over'].forEach(s=>document.getElementById(s).classList.toggle('on',s===id)); }
+function finish(){
+  S.run=false; stop();
+  document.getElementById('ovs').textContent='这一首画了 '+S.taps+' 笔';
+  scr('over');
+}
+function buildSongs(){
+  const el=document.getElementById('songs'); el.innerHTML='';
+  MANIFEST.forEach((m,i)=>{
+    const d=document.createElement('div');
+    d.className='sg'; d.textContent=m.title;
+    d.setAttribute('aria-checked', i===curIdx?'true':'false');
+    d.onclick=async ()=>{
+      const go=document.getElementById('go');
+      go.disabled=true; go.textContent='载入中…';
+      try{ await loadSong(i); buildSongs(); go.textContent='开始'; go.disabled=false; }
+      catch(e){ go.textContent='载入失败'; }
+    };
+    el.appendChild(d);
+  });
+}
+document.getElementById('go').onclick=start;
+document.getElementById('home2').onclick=()=>{ location.href='index.html'; };
+document.getElementById('again').onclick=start;
+document.getElementById('back').onclick=()=>{ buildSongs(); scr('menu'); };
+document.getElementById('home').onclick=()=>{ location.href='index.html'; };
+
+cols(); resize(); requestAnimationFrame(frame);
+(async()=>{
+  const go=document.getElementById('go');
+  try{
+    await loadManifest();
+    const want=new URLSearchParams(location.search).get('song');
+    let idx=0;
+    if(want){ const k=MANIFEST.findIndex(m=>m.id===want); if(k>=0) idx=k; }
+    await loadSong(idx); buildSongs();
+    go.disabled=false; go.textContent='开始';
+  }catch(e){
+    go.textContent='载入失败';
+    document.querySelector('#menu .sub:last-child').innerHTML=
+      '<b style="color:#d69f9f">'+String(e.message||e)+'</b><br>请通过网址打开，不要直接双击本地文件';
+  }
+})();
+})();
+</script>
+</body>
+</html>

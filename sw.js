@@ -7,11 +7,12 @@
        基本不变，存一次就不再重复下载。
    发新版时把下面的 VER 改掉，旧缓存会在激活时清空。
    ------------------------------------------------------------------ */
-const VER   = 'V0.8.2';
+const VER   = 'V0.9.1';
 const CACHE = 'jhb-' + VER;
 
 const SHELL = [
-  'index.html', 'henry_run.png', 'henry_idle.png',
+  'index.html', 'ocean.html', 'paint.html',
+  'henry_run.png', 'henry_idle.png',
   'icon-h192.png', 'icon-h512.png', 'app.webmanifest'
 ];
 

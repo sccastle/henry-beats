@@ -52,6 +52,14 @@
   .song p{margin:0;font-size:10.5px;color:var(--dim)}
   #pause{position:absolute;top:9px;right:9px;width:32px;height:32px;border:1px solid var(--line);
     background:rgba(44,49,62,.8);color:var(--dim);font-size:11px;cursor:pointer;display:none}
+  .modes{display:flex;gap:13px;justify-content:center;flex-wrap:wrap;margin-top:2px}
+  .mcard{width:132px;border:2px solid var(--line);background:var(--bg2);padding:13px 10px;
+    cursor:pointer;transition:border-color .2s ease,transform .12s ease}
+  .mcard:active{border-color:var(--acc);transform:translateY(1px)}
+  .mcard b{display:block;font-size:15px;letter-spacing:.18em;color:var(--acc);
+    font-weight:600;margin-bottom:6px}
+  .mcard span{display:block;font-size:11px;color:var(--dim);line-height:1.7}
+  .mcard.dim{opacity:.5;pointer-events:none}
   #rot{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
     gap:12px;background:var(--bg);z-index:60;color:var(--dim);font-size:14px}
   body.port #rot{display:flex}
@@ -66,11 +74,16 @@
   <div class="scr on" id="home">
     <canvas id="logo" width="520" height="130" style="width:390px;height:97px"></canvas>
     <img id="hidle" alt="" style="image-rendering:pixelated;height:112px;display:none;margin:-6px 0 -4px">
-    <div style="display:flex;flex-direction:column;gap:9px;margin-top:4px">
-      <button class="btn" id="b-play" disabled>载入中…</button>
+    <div class="modes">
+      <div class="mcard" id="m-play"><b>演 奏</b><span>打节奏<br>换武器打小怪</span></div>
+      <div class="mcard" id="m-ocean"><b>海 洋</b><span>点亮浪花<br>召唤海洋生物</span></div>
+      <div class="mcard" id="m-paint"><b>画 板</b><span>手指划到哪<br>图形长到哪</span></div>
+    </div>
+    <div style="display:flex;gap:9px;margin-top:2px">
       <button class="btn g" id="b-songs">歌曲选择</button>
       <button class="btn g" id="b-set">设置</button>
     </div>
+    <button class="btn" id="b-play" style="display:none">开始演奏</button>
     <p class="sub" id="nowsong" style="color:var(--acc)"></p>
     <p class="sub" id="fragline"></p>
     <div id="updbar" style="display:none;cursor:pointer;border:2px solid #d9c489;color:#d9c489;padding:9px 20px;font-size:13px;margin-top:4px"></div>
@@ -173,7 +186,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.8.2';
+const VER='V0.9.1';
 const CACHE_NAME='jhb-'+VER;
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
@@ -977,7 +990,13 @@ document.getElementById('r-spd').oninput=e=>{CFG.spd=e.target.value/100;
   document.getElementById('v-spd').textContent=CFG.spd.toFixed(1)+'×';};
 document.getElementById('r-off').oninput=e=>{CFG.off=parseInt(e.target.value,10)/1000;
   document.getElementById('v-off').textContent=e.target.value+'ms';};
-document.getElementById('b-play').onclick=startGame;
+document.getElementById('m-play').onclick=()=>startGame();
+document.getElementById('m-ocean').onclick=()=>goPage('ocean.html');
+document.getElementById('m-paint').onclick=()=>goPage('paint.html');
+function goPage(page){
+  const id=(MANIFEST[curIdx]&&MANIFEST[curIdx].id)||'';
+  location.href=page+(id?('?song='+encodeURIComponent(id)):'');
+}
 document.getElementById('b-songs').onclick=()=>{ buildSongs(); scr('songs'); };
 document.getElementById('b-set').onclick=()=>scr('setting');
 document.getElementById('s-back').onclick=()=>scr('home');
@@ -1047,6 +1066,7 @@ document.getElementById('dl-all').onclick=precacheAll;
 document.getElementById('dl-clear').onclick=clearCache;
 document.getElementById('b-set').addEventListener('click',cacheInfo);
 
+document.querySelectorAll('.mcard').forEach(c=>c.classList.add('dim'));
 loadSave(); cols(); resize(); drawLogo(); fragLine();
 requestAnimationFrame(frame);
 const pb=document.getElementById('b-play');
@@ -1068,6 +1088,7 @@ else{
       document.getElementById('nowsong').textContent=
         MANIFEST[0].title+' · '+MANIFEST[0].artist;
       pb.disabled=false; pb.textContent='开始演奏';
+      document.querySelectorAll('.mcard').forEach(c=>c.classList.remove('dim'));
       let seen=null;
       try{ seen=localStorage.getItem('jhb_seen_ver'); }catch(e){}
       if(j.ver && j.ver!==VER && j.ver!==seen){      /* 线上有新版但本地是缓存的旧页面 */
