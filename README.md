@@ -44,3 +44,4 @@ iPad 上用 Safari 打开 → 分享 → 添加到主屏幕，会变成全屏图
 
 - 存档（Beat Fragment）绑定网址，换网址会清零。
 - GitHub Pages 的站是公开可访问的，已加 noindex 防搜索引擎收录。
+- 
