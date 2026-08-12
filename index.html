@@ -53,7 +53,7 @@
   #pause{position:absolute;top:9px;right:9px;width:32px;height:32px;border:1px solid var(--line);
     background:rgba(44,49,62,.8);color:var(--dim);font-size:11px;cursor:pointer;display:none}
   .modes{display:flex;gap:13px;justify-content:center;flex-wrap:wrap;margin-top:2px}
-  .mcard{width:132px;border:2px solid var(--line);background:var(--bg2);padding:13px 10px;
+  .mcard{width:124px;border:2px solid var(--line);background:var(--bg2);padding:13px 10px;
     cursor:pointer;transition:border-color .2s ease,transform .12s ease}
   .mcard:active{border-color:var(--acc);transform:translateY(1px)}
   .mcard b{display:block;font-size:15px;letter-spacing:.18em;color:var(--acc);
@@ -78,6 +78,7 @@
       <div class="mcard" id="m-play"><b>演 奏</b><span>打节奏<br>换武器打小怪</span></div>
       <div class="mcard" id="m-ocean"><b>海 洋</b><span>点亮浪花<br>召唤海洋生物</span></div>
       <div class="mcard" id="m-paint"><b>画 板</b><span>手指划到哪<br>图形长到哪</span></div>
+      <div class="mcard" id="m-jump"><b>跳 跃</b><span>踩着鼓点跳<br>跨过障碍</span></div>
     </div>
     <div style="display:flex;gap:9px;margin-top:2px">
       <button class="btn g" id="b-songs">歌曲选择</button>
@@ -186,7 +187,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.9.1';
+const VER='V0.10.0';
 const CACHE_NAME='jhb-'+VER;
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
@@ -993,6 +994,7 @@ document.getElementById('r-off').oninput=e=>{CFG.off=parseInt(e.target.value,10)
 document.getElementById('m-play').onclick=()=>startGame();
 document.getElementById('m-ocean').onclick=()=>goPage('ocean.html');
 document.getElementById('m-paint').onclick=()=>goPage('paint.html');
+document.getElementById('m-jump').onclick=()=>goPage('jump.html');
 function goPage(page){
   const id=(MANIFEST[curIdx]&&MANIFEST[curIdx].id)||'';
   location.href=page+(id?('?song='+encodeURIComponent(id)):'');

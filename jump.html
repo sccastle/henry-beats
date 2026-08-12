@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>JHB · 跳跃</title>
+<style>
+  :root{
+    --bg:#252a36; --bg2:#2d3341; --line:#414a5c; --dark:#1a1e27;
+    --ink:#e3e8f0; --dim:#909bad; --acc:#7fd6c0; --warn:#d9c489; --rose:#d69f9f;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+    overscroll-behavior:none;user-select:none;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none;image-rendering:pixelated}
+  .scr{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;padding:22px;background:var(--bg);text-align:center}
+  .scr.on{display:flex}
+  h1{font-size:21px;margin:0;letter-spacing:.16em;font-weight:600}
+  h1 span{color:var(--acc)}
+  .sub{color:var(--dim);font-size:12.5px;line-height:1.85;margin:0;max-width:480px}
+  .btn{appearance:none;border:2px solid var(--acc);background:transparent;color:var(--acc);
+    font:inherit;font-size:15px;padding:11px 40px;cursor:pointer;letter-spacing:.1em}
+  .btn.g{border-color:var(--line);color:var(--dim);font-size:12.5px;padding:8px 24px}
+  .list{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;max-width:560px}
+  .sg{border:1px solid var(--line);padding:7px 14px;font-size:11.5px;color:var(--dim);cursor:pointer}
+  .sg[aria-checked="true"]{border-color:var(--acc);color:var(--acc)}
+  .seg{display:flex;border:1px solid var(--line)}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--dim);
+    font:inherit;font-size:12px;padding:8px 20px;cursor:pointer}
+  .seg button[aria-checked="true"]{background:rgba(127,214,192,.15);color:var(--acc)}
+  #rot{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:10px;background:var(--bg);z-index:60;color:var(--dim);font-size:14px}
+  body.port #rot{display:flex}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+
+<div class="scr on" id="menu">
+  <h1>跳<span>跃</span></h1>
+  <p class="sub">点屏幕任意位置起跳，跨过路上的障碍。<br>
+    障碍都踩在鼓点上，跟着音乐跳就对了。<br>
+    撞到不会失败，只会踉跄一下，歌照样放完。</p>
+  <div class="seg" id="diff">
+    <button data-v="easy" aria-checked="true">轻松</button>
+    <button data-v="normal" aria-checked="false">普通</button>
+    <button data-v="hard" aria-checked="false">困难</button>
+  </div>
+  <div class="list" id="songs"></div>
+  <button class="btn" id="go" disabled>载入中…</button>
+  <button class="btn g" id="home2">回到主菜单</button>
+</div>
+
+<div class="scr" id="over">
+  <h1 id="ovt">跑完了</h1>
+  <p class="sub" id="ovs"></p>
+  <button class="btn" id="again">再跑一次</button>
+  <button class="btn g" id="back">换首歌</button>
+  <button class="btn g" id="home">回到主菜单</button>
+</div>
+<div id="rot"><b style="color:var(--acc);font-weight:400;font-size:17px">请把屏幕横过来</b><span>这个模式是横屏的</span></div>
+
+<script>
+(function(){
+'use strict';
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const sstep=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
+const TAU=Math.PI*2;
+const VW=640, VH=432;
+const GROUND=330;                  /* 地面 y */
+
+const cv=document.getElementById('cv'), g=cv.getContext('2d');
+let scale=1;
+function resize(){
+  const W=innerWidth,H=innerHeight;
+  document.body.classList.toggle('port',H>W*1.02);
+  scale=Math.min(W/VW,H/VH);
+  const dpr=Math.min(devicePixelRatio||1,2.5);
+  cv.style.width=(VW*scale)+'px'; cv.style.height=(VH*scale)+'px';
+  cv.width=Math.round(VW*scale*dpr); cv.height=Math.round(VH*scale*dpr);
+  g.setTransform(scale*dpr,0,0,scale*dpr,0,0); g.imageSmoothingEnabled=false;
+}
+addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,150));
+let C={};
+function cols(){ ['--bg','--bg2','--line','--dark','--ink','--dim','--acc','--warn','--rose']
+  .forEach(n=>C[n]=getComputedStyle(document.documentElement).getPropertyValue(n).trim()); }
+function rgba(h,a){ return 'rgba('+parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)+','+a+')'; }
+
+/* ---------- 音频 ---------- */
+const A={};
+function initAudio(){
+  if(A.ctx) return;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  A.ctx=new AC();
+  A.mus=A.ctx.createGain(); A.mus.gain.value=0.74; A.mus.connect(A.ctx.destination);
+  A.sfx=A.ctx.createGain(); A.sfx.gain.value=0.5;  A.sfx.connect(A.ctx.destination);
+  const n=Math.floor(A.ctx.sampleRate*0.4);
+  const b=A.ctx.createBuffer(1,n,A.ctx.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+  A.noise=b;
+}
+function env(t,a,dc,pk){
+  const gn=A.ctx.createGain();
+  gn.gain.setValueAtTime(0.0001,t);
+  gn.gain.linearRampToValueAtTime(pk,t+a);
+  gn.gain.exponentialRampToValueAtTime(0.0001,t+a+dc);
+  gn.connect(A.sfx); return gn;
+}
+function hop(){
+  if(!A.ctx) return;
+  const t=A.ctx.currentTime+0.001;
+  const o=A.ctx.createOscillator(); o.type='square';
+  o.frequency.setValueAtTime(420,t); o.frequency.exponentialRampToValueAtTime(880,t+0.07);
+  o.connect(env(t,0.003,0.07,0.13)); o.start(t); o.stop(t+0.13);
+}
+function land(){
+  if(!A.ctx) return;
+  const t=A.ctx.currentTime+0.001;
+  const s=A.ctx.createBufferSource(); s.buffer=A.noise;
+  const lp=A.ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900;
+  s.connect(lp); lp.connect(env(t,0.001,0.05,0.16)); s.start(t); s.stop(t+0.1);
+}
+function bump(){
+  if(!A.ctx) return;
+  const t=A.ctx.currentTime+0.001;
+  const o=A.ctx.createOscillator(); o.type='sine';
+  o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(62,t+0.2);
+  o.connect(env(t,0.004,0.28,0.5)); o.start(t); o.stop(t+0.4);
+}
+function ding(){
+  if(!A.ctx) return;
+  const t0=A.ctx.currentTime+0.01;
+  [784,988,1175,1568].forEach((f,i)=>{
+    const t=t0+i*0.075;
+    const o=A.ctx.createOscillator(); o.type='square'; o.frequency.value=f;
+    o.connect(env(t,0.004,0.3,0.11)); o.start(t); o.stop(t+0.4);
+  });
+}
+
+/* ---------- 数据 ---------- */
+let MANIFEST=[], JUMP=null, SONG=null, JC=null, BUF=null, curIdx=0, DIFF='easy';
+let PH={v:300,g:2800,j:780,pr:13}, OBSDEF={};
+let SPR=null;
+function loadImg(src){ return new Promise((res,rej)=>{ const i=new Image();
+  i.onload=()=>res(i); i.onerror=()=>rej(new Error(src)); i.src=src; }); }
+async function loadAll(){
+  initAudio();
+  const j=await (await fetch('manifest.json',{cache:'no-cache'})).json();
+  MANIFEST=j.songs;
+  JUMP=await (await fetch('jumpcharts.json',{cache:'no-cache'})).json();
+  PH=JUMP.physics; OBSDEF=JUMP.obs;
+  try{ SPR=await loadImg('henry_run.png'); }catch(e){ SPR=null; }
+}
+async function loadSong(i){
+  const m=MANIFEST[i];
+  const doc=await (await fetch(m.chart,{cache:'no-cache'})).json();
+  const ab=await (await fetch(doc.audio)).arrayBuffer();
+  BUF=await new Promise((res,rej)=>A.ctx.decodeAudioData(ab,res,rej));
+  SONG=doc; JC=JUMP.songs[m.id]; curIdx=i;
+}
+
+/* ---------- 状态 ---------- */
+let S=null;
+function init(){
+  const obs=(JC.charts[DIFF]||JC.charts.easy).obs;
+  S={ t:SONG['in'], t0:0, run:false, src:null,
+      y:0, vy:0, air:false,
+      obs:obs.map(o=>({b:o.b, t:o.t, x:o.b*JC.spb*PH.v, hit:false, passed:false})),
+      head:0, cleared:0, bumps:0, combo:0, best:0,
+      inv:0, stumble:0, dust:[], lastB:-1, pulse:0, popT:0, popTxt:'' };
+}
+function px(){ return (S.t-JC['in'])*PH.v; }     /* 角色在关卡里的横向位置 */
+function start(){
+  cols(); resize(); init();
+  A.ctx.resume().then(()=>{
+    const s=A.ctx.createBufferSource(); s.buffer=BUF; s.connect(A.mus);
+    const when=A.ctx.currentTime+0.15;
+    s.start(when,SONG['in']); s.stop(when+(SONG.out-SONG['in'])+0.4);
+    S.src=s; S.t0=when-SONG['in']; S.run=true; scr(null);
+  });
+}
+function stop(){ if(S&&S.src){ try{S.src.stop();}catch(e){} S.src=null; } }
+
+function jump(){
+  if(!S||!S.run) return;
+  if(S.air) return;
+  S.vy=PH.j; S.air=true; hop();
+  for(let i=0;i<5;i++) S.dust.push({x:-6+Math.random()*12,y:0,vx:-30-Math.random()*50,life:1});
+}
+
+/* ---------- 循环 ---------- */
+let last=0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  const dt=Math.min((ts-last)/1000||0,0.04); last=ts;
+  if(!S||!S.run) return;
+  S.t=A.ctx.currentTime-S.t0;
+  step(dt); draw(ts/1000);
+  if(S.t>=SONG.out) finish();
+}
+function step(dt){
+  const b=(S.t-JC.beat0)/JC.spb, ib=Math.floor(b);
+  if(ib!==S.lastB){ S.lastB=ib; S.pulse=1; }
+  S.pulse=Math.max(0,S.pulse-dt*3);
+  S.inv=Math.max(0,S.inv-dt);
+  S.stumble=Math.max(0,S.stumble-dt*2.2);
+  S.popT=Math.max(0,S.popT-dt);
+  /* 重力 */
+  if(S.air||S.y>0){
+    S.vy-=PH.g*dt; S.y+=S.vy*dt;
+    if(S.y<=0){
+      if(S.air) land();
+      S.y=0; S.vy=0; S.air=false;
+      for(let i=0;i<4;i++) S.dust.push({x:-4+Math.random()*8,y:0,vx:-40-Math.random()*60,life:1});
+    }
+  }
+  for(let i=S.dust.length-1;i>=0;i--){
+    const d=S.dust[i]; d.x+=d.vx*dt; d.y-=14*dt; d.life-=dt*2.2;
+    if(d.life<=0) S.dust.splice(i,1);
+  }
+  /* 碰撞与通过 */
+  const p=px(), R=PH.pr;
+  for(let i=S.head;i<S.obs.length;i++){
+    const o=S.obs[i], D=OBSDEF[o.t];
+    if(o.x+D.w+R < p-40){ S.head=i+1; continue; }
+    if(o.x-R > p+60) break;
+    if(o.passed) continue;
+    const over = p+R>o.x && p-R<o.x+D.w;
+    if(over && !o.hit){
+      const bad = D.pit ? (S.y<=1) : (S.y < D.h);
+      if(bad && S.inv<=0){
+        o.hit=true; S.bumps++; S.combo=0; S.inv=0.9; S.stumble=1; bump();
+      }
+    }
+    if(p-R > o.x+D.w && !o.passed){
+      o.passed=true;
+      if(!o.hit){ S.cleared++; S.combo++; S.best=Math.max(S.best,S.combo);
+        if(S.combo>0 && S.combo%10===0){ S.popTxt=S.combo+' 连'; S.popT=1.4; ding(); } }
+    }
+  }
+}
+
+/* ---------- 绘制 ---------- */
+function drawObs(o,sx){
+  const D=OBSDEF[o.t];
+  const a=o.hit?0.35:1;
+  if(o.t==='gap'){
+    g.fillStyle=C['--bg']; g.fillRect(sx,GROUND,D.w,VH-GROUND);
+    g.fillStyle=rgba(C['--rose'],0.5*a);
+    for(let x=0;x<D.w;x+=14) g.fillRect(sx+x,GROUND+3,7,3);
+    g.fillStyle=rgba(C['--line'],1);
+    g.fillRect(sx-3,GROUND,3,10); g.fillRect(sx+D.w,GROUND,3,10);
+    return;
+  }
+  if(o.t==='spike'){
+    g.fillStyle=rgba(C['--rose'],0.22*a); g.strokeStyle=rgba(C['--rose'],0.85*a); g.lineWidth=2.5;
+    const steps=4, sw=D.w/steps/2;
+    g.beginPath(); g.moveTo(sx,GROUND);
+    for(let i=0;i<steps;i++){ g.lineTo(sx+i*sw,GROUND-D.h*(i+1)/steps); g.lineTo(sx+(i+1)*sw,GROUND-D.h*(i+1)/steps); }
+    for(let i=steps-1;i>=0;i--){ g.lineTo(sx+D.w-(i+1)*sw,GROUND-D.h*(i+1)/steps); g.lineTo(sx+D.w-i*sw,GROUND-D.h*(i+1)/steps); }
+    g.lineTo(sx+D.w,GROUND); g.closePath(); g.fill(); g.stroke();
+    return;
+  }
+  g.fillStyle=rgba(C['--warn'],0.20*a); g.strokeStyle=rgba(C['--warn'],0.85*a); g.lineWidth=2.5;
+  g.fillRect(sx,GROUND-D.h,D.w,D.h); g.strokeRect(sx,GROUND-D.h,D.w,D.h);
+  g.fillStyle=rgba(C['--warn'],0.45*a);
+  g.fillRect(sx+5,GROUND-D.h+5,D.w-10,4);
+}
+function draw(clock){
+  const p=px();
+  g.fillStyle=C['--bg']; g.fillRect(0,0,VW,VH);
+  /* 远景：静态低对比方块，视差滚动 */
+  g.fillStyle=rgba(C['--bg2'],1);
+  const far=(p*0.18)%120;
+  for(let x=-120+ -far;x<VW+120;x+=120){
+    g.fillRect(x+20,GROUND-92,52,92); g.fillRect(x+84,GROUND-58,34,58);
+  }
+  /* 地面 */
+  g.fillStyle=rgba(C['--line'],1); g.fillRect(0,GROUND,VW,3);
+  g.fillStyle=rgba(C['--line'],0.55);
+  const goff=(p*1.0)%28;
+  for(let x=-28-goff;x<VW;x+=28) g.fillRect(Math.round(x),GROUND+8,13,3);
+  /* 拍点竖线：每拍一条，几何提示，不闪 */
+  const bNow=(S.t-JC.beat0)/JC.spb;
+  g.fillStyle=rgba(C['--line'],0.5);
+  for(let k=Math.floor(bNow);k<bNow+6;k++){
+    const bx=PLAYER_X+(k*JC.spb*PH.v - p);
+    if(bx>-4&&bx<VW) g.fillRect(Math.round(bx),GROUND-6,2,6);
+  }
+  /* 障碍 */
+  for(let i=S.head;i<S.obs.length;i++){
+    const o=S.obs[i];
+    const sx=PLAYER_X+(o.x-p);
+    if(sx>VW+40) break;
+    if(sx< -140) continue;
+    drawObs(o,Math.round(sx));
+  }
+  /* 扬尘 */
+  S.dust.forEach(d=>{ g.fillStyle=rgba(C['--dim'],clamp(d.life,0,1)*0.4);
+    g.fillRect(Math.round(PLAYER_X+d.x),Math.round(GROUND-2+d.y),3,3); });
+  /* Henry */
+  const hy=GROUND-S.y;
+  const bob=S.air?0:Math.round(Math.sin(clock*11)*2);
+  const lean=S.stumble>0?Math.round(sstep(S.stumble)*7):0;
+  if(SPR){
+    const w=SPR.width,h=SPR.height;
+    g.save();
+    if(S.inv>0) g.globalAlpha=0.45+0.3*Math.sin(clock*3);   /* 缓慢起伏，非闪烁 */
+    g.translate(Math.round(PLAYER_X-w/2-lean), Math.round(hy-h+bob));
+    if(S.air){ g.translate(w/2,h/2); g.rotate(clamp(-S.vy/2600,-0.3,0.3)); g.translate(-w/2,-h/2); }
+    g.drawImage(SPR,0,0,w,h); g.restore(); g.globalAlpha=1;
+  }else{
+    g.fillStyle=S.inv>0?rgba(C['--acc'],0.5):C['--acc'];
+    g.fillRect(Math.round(PLAYER_X-13),Math.round(hy-46+bob),26,46);
+  }
+  hud(bNow);
+}
+function hud(bNow){
+  g.fillStyle=rgba(C['--bg'],0.66); g.fillRect(0,0,VW,30);
+  g.font='600 13px -apple-system,"PingFang SC",sans-serif';
+  g.textAlign='left'; g.fillStyle=C['--dim']; g.fillText(SONG.title,14,20);
+  g.textAlign='center';
+  g.fillStyle=S.combo>=5?C['--acc']:C['--dim'];
+  g.fillText(S.combo>1?('连过 '+S.combo):'点屏幕起跳',VW/2,20);
+  g.textAlign='right'; g.fillStyle=C['--dim'];
+  g.fillText(Math.ceil(Math.max(0,SONG.out-S.t))+'s',VW-14,20);
+  g.textAlign='left';
+  const pr=clamp((S.t-SONG['in'])/(SONG.out-SONG['in']),0,1);
+  g.fillStyle=rgba(C['--line'],1); g.fillRect(0,30,VW,3);
+  g.fillStyle=rgba(C['--acc'],0.7); g.fillRect(0,30,VW*pr,3);
+  /* 进度条上的小人 */
+  g.fillStyle=C['--acc']; g.fillRect(Math.round(VW*pr)-3,26,6,10);
+  if(S.popT>0){
+    const a=sstep(Math.min(S.popT/0.25,(1.4-S.popT)/0.25));
+    g.textAlign='center'; g.font='700 22px -apple-system,"PingFang SC",sans-serif';
+    g.fillStyle=rgba(C['--bg'],a*0.8); g.fillText(S.popTxt,VW/2+1,GROUND-136);
+    g.fillStyle=rgba(C['--acc'],a); g.fillText(S.popTxt,VW/2,GROUND-137);
+    g.textAlign='left';
+  }
+}
+const PLAYER_X=150;
+
+/* ---------- 输入 ---------- */
+cv.addEventListener('pointerdown',e=>{ jump(); e.preventDefault(); },{passive:false});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='ArrowUp'){ jump(); e.preventDefault(); }
+});
+
+/* ---------- 流程 ---------- */
+function scr(id){ ['menu','over'].forEach(s=>document.getElementById(s).classList.toggle('on',s===id)); }
+function finish(){
+  S.run=false; stop(); ding();
+  const tot=S.cleared+S.bumps;
+  document.getElementById('ovs').textContent=
+    '跨过 '+S.cleared+' / '+tot+' 个障碍　撞到 '+S.bumps+' 次　最长连过 '+S.best;
+  scr('over');
+}
+function buildSongs(){
+  const el=document.getElementById('songs'); el.innerHTML='';
+  MANIFEST.forEach((m,i)=>{
+    const d=document.createElement('div');
+    d.className='sg'; d.textContent=m.title;
+    d.setAttribute('aria-checked', i===curIdx?'true':'false');
+    d.onclick=async ()=>{
+      const go=document.getElementById('go');
+      go.disabled=true; go.textContent='载入中…';
+      try{ await loadSong(i); buildSongs(); go.textContent='开始'; go.disabled=false; }
+      catch(e){ go.textContent='载入失败'; }
+    };
+    el.appendChild(d);
+  });
+}
+const dl=document.getElementById('diff');
+dl.querySelectorAll('button').forEach(b=>{
+  b.onclick=()=>{ dl.querySelectorAll('button').forEach(x=>x.setAttribute('aria-checked','false'));
+    b.setAttribute('aria-checked','true'); DIFF=b.dataset.v; };
+});
+document.getElementById('go').onclick=start;
+document.getElementById('again').onclick=start;
+document.getElementById('back').onclick=()=>{ buildSongs(); scr('menu'); };
+document.getElementById('home').onclick=()=>{ location.href='index.html'; };
+document.getElementById('home2').onclick=()=>{ location.href='index.html'; };
+
+cols(); resize(); requestAnimationFrame(frame);
+(async()=>{
+  const go=document.getElementById('go');
+  try{
+    await loadAll();
+    const want=new URLSearchParams(location.search).get('song');
+    let idx=0;
+    if(want){ const k=MANIFEST.findIndex(m=>m.id===want); if(k>=0) idx=k; }
+    await loadSong(idx); buildSongs();
+    go.disabled=false; go.textContent='开始';
+  }catch(e){
+    go.textContent='载入失败';
+    document.querySelector('#menu .sub').innerHTML=
+      '<b style="color:#d69f9f">'+String(e.message||e)+'</b><br>请通过网址打开，并确认 jumpcharts.json 已上传';
+  }
+})();
+})();
+</script>
+</body>
+</html>
