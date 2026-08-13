@@ -101,9 +101,9 @@
     <p class="sub" style="font-size:14px;color:var(--ink)">设置</p>
     <div class="rowset">
       <div class="row"><b>难度</b><div class="seg" id="sg-diff">
-        <button data-v="easy" aria-checked="true">Easy 2轨</button>
-        <button data-v="normal" aria-checked="false">Normal 4轨</button>
-        <button data-v="hard" aria-checked="false">Hard 4轨</button></div></div>
+        <button data-v="easy" aria-checked="true">轻松</button>
+        <button data-v="normal" aria-checked="false">普通</button>
+        <button data-v="hard" aria-checked="false">困难</button></div></div>
       <div class="row"><b>视觉强度</b><div class="seg" id="sg-vis">
         <button data-v="0" aria-checked="true">最低</button>
         <button data-v="1" aria-checked="false">低</button>
@@ -121,6 +121,7 @@
         <button class="btn g" id="dl-clear">清除缓存</button>
       </div>
     </div>
+    <p class="sub" style="margin-bottom:-4px">难度对每个模式的含义不同：演奏改轨道数和音符密度，跳跃改障碍密度，海洋和画板不受影响。</p>
     <p class="sub">判定偏移：如果总觉得音乐比手慢半拍，把它往右调。<br>
       游戏里每次判定都会显示提前/延迟毫秒数，照着调到接近 0 就对了。</p>
     <button class="btn g" id="set-back">返回</button>
@@ -187,8 +188,8 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.10.1';
-const CACHE_NAME='jhb-'+VER;
+const VER='V0.11.0';
+const MEDIA_CACHE='jhb-media';   /* 与 sw.js 一致，不随版本变 */
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
 let CHARTS=null, SONG=null, MANIFEST=[], curIdx=0;
@@ -1033,29 +1034,55 @@ if('serviceWorker' in navigator){
     if(done) return; done=true; location.reload();
   });
 }
+async function cachedSet(){
+  const out=new Set();
+  if(!('caches' in window)) return out;
+  try{
+    const c=await caches.open(MEDIA_CACHE), ks=await c.keys();
+    ks.forEach(r=>{ const n=r.url.split('/').pop().split('?')[0]; if(n.endsWith('.m4a')) out.add(n); });
+  }catch(e){}
+  return out;
+}
 async function cacheInfo(){
   const el=document.getElementById('cachetxt');
   if(!('caches' in window)){ el.textContent='这个浏览器不支持离线缓存'; return; }
-  try{
-    const c=await caches.open(CACHE_NAME), ks=await c.keys();
-    const n=ks.filter(r=>r.url.endsWith('.m4a')).length;
-    const tot=MANIFEST.length||'?';
-    el.innerHTML=n>=tot&&tot!=='?'
-      ? '<b style="color:var(--acc)">全部 '+tot+' 首已存到本地，断网也能玩</b>'
-      : n+' / '+tot+' 首已离线　·　存到本地后打开就不用等下载';
-  }catch(e){ el.textContent='缓存状态读取失败'; }
+  const have=await cachedSet();
+  const miss=[];
+  for(const m of MANIFEST){
+    let name=null;
+    try{ name=(await (await fetch(m.chart)).json()).audio.split('/').pop(); }catch(e){}
+    if(!name||!have.has(name)) miss.push(m.title);
+  }
+  const tot=MANIFEST.length, n=tot-miss.length;
+  el.innerHTML = miss.length===0
+    ? '<b style="color:var(--acc)">全部 '+tot+' 首已存到本地，断网也能玩</b><br>'+
+      '<span style="color:#6f7789">更新版本不会清掉，不用重新下载</span>'
+    : n+' / '+tot+' 首已离线　·　缺：'+miss.join('、');
 }
 async function precacheAll(){
   const btn=document.getElementById('dl-all'), el=document.getElementById('cachetxt');
   btn.disabled=true;
-  try{
-    for(let i=0;i<MANIFEST.length;i++){
-      el.textContent='下载 '+(i+1)+'/'+MANIFEST.length+'：'+MANIFEST[i].title+' …';
-      const d=await (await fetch(MANIFEST[i].chart,{cache:'no-cache'})).json();
-      await fetch(d.audio);          /* Service Worker 会顺手存下来 */
+  const failed=[];
+  for(let i=0;i<MANIFEST.length;i++){
+    const m=MANIFEST[i];
+    let ok=false;
+    for(let k=0;k<3 && !ok;k++){            /* 每首最多重试 3 次，失败也不中断后面的 */
+      el.textContent='下载 '+(i+1)+'/'+MANIFEST.length+'：'+m.title+(k?'（重试 '+k+'）':'')+' …';
+      try{
+        const d=await (await fetch(m.chart,{cache:'no-cache'})).json();
+        const r=await fetch(d.audio);
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        await r.arrayBuffer();              /* 读完才算真的下载到 */
+        ok=true;
+      }catch(e){ await new Promise(z=>setTimeout(z,600)); }
     }
-  }catch(e){ el.textContent='下载中断：'+(e.message||e); btn.disabled=false; return; }
-  btn.disabled=false; cacheInfo();
+    if(!ok) failed.push(m.title);
+  }
+  btn.disabled=false;
+  if(failed.length){
+    el.innerHTML='<b style="color:#d69f9f">这几首没下成功：'+failed.join('、')+
+      '</b><br><span style="color:#6f7789">网络不稳，点一次「把全部歌曲存到本地」再试</span>';
+  }else await cacheInfo();
 }
 async function clearCache(){
   try{
