@@ -1,5 +1,5 @@
 {
- "ver": "V0.11.0",
+ "ver": "V0.11.1",
  "songs": [
   {
    "id": "chronos",
@@ -42,6 +42,12 @@
    "title": "SPACE INVADERS",
    "artist": "Teminite & MDK",
    "chart": "spaceinv.json"
+  },
+  {
+   "id": "newgame",
+   "title": "NEW GAME",
+   "artist": "Nitro Fun",
+   "chart": "newgame.json"
   }
  ]
 }
