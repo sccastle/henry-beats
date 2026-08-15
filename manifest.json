@@ -1,5 +1,5 @@
 {
- "ver": "V0.12.0",
+ "ver": "V0.12.1",
  "songs": [
   {
    "id": "chronos",
@@ -69,8 +69,8 @@
   },
   {
    "id": "wicked",
-   "title": "WICKED (VIP MIX)",
-   "artist": "Basstrick & YYVNG",
+   "title": "WICKED VIP",
+   "artist": "Avenza",
    "chart": "wicked.json"
   }
  ]
