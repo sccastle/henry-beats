@@ -1,5 +1,5 @@
 {
- "ver": "V0.11.1",
+ "ver": "V0.12.0",
  "songs": [
   {
    "id": "chronos",
@@ -48,6 +48,30 @@
    "title": "NEW GAME",
    "artist": "Nitro Fun",
    "chart": "newgame.json"
+  },
+  {
+   "id": "highscore",
+   "title": "HIGHSCORE",
+   "artist": "Panda Eyes & Teminite",
+   "chart": "highscore.json"
+  },
+  {
+   "id": "closetome",
+   "title": "CLOSE TO ME",
+   "artist": "Sabrepulse",
+   "chart": "closetome.json"
+  },
+  {
+   "id": "intothezone",
+   "title": "INTO THE ZONE",
+   "artist": "Shirobon",
+   "chart": "intothezone.json"
+  },
+  {
+   "id": "wicked",
+   "title": "WICKED (VIP MIX)",
+   "artist": "Basstrick & YYVNG",
+   "chart": "wicked.json"
   }
  ]
 }
