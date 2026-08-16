@@ -57,7 +57,7 @@
   <button class="btn g" id="back">换首歌</button>
   <button class="btn g" id="home">回到主菜单</button>
 </div>
-<div id="rot"><b style="color:var(--acc);font-weight:400;font-size:17px">请把屏幕横过来</b><span>这个模式是横屏的</span></div>
+<div id="rot"><b style="color:var(--acc);font-weight:400;font-size:17px">请把屏幕横过来</b><span>这个模式是横屏的</span><button id="rot-ok" style="margin-top:6px;appearance:none;border:2px solid #7fd6c0;background:transparent;color:#7fd6c0;font:inherit;font-size:13px;padding:9px 26px;cursor:pointer;letter-spacing:.08em">就这样玩</button></div>
 
 <script>
 (function(){
@@ -70,16 +70,19 @@ const VW=640, VH=432;
 /* ---------- 画布 ---------- */
 const cv=document.getElementById('cv'), g=cv.getContext('2d');
 let scale=1;
+let rotOK=false;   /* 用户点过「就这样玩」之后不再提示 */
 function resize(){
   const W=innerWidth,H=innerHeight;
-  document.body.classList.toggle('port',H>W*1.02);
+  document.body.classList.toggle('port', VW*scale<460 && H>W && !rotOK);
   scale=Math.min(W/VW,H/VH);
   const dpr=Math.min(devicePixelRatio||1,2.5);
   cv.style.width=(VW*scale)+'px'; cv.style.height=(VH*scale)+'px';
   cv.width=Math.round(VW*scale*dpr); cv.height=Math.round(VH*scale*dpr);
   g.setTransform(scale*dpr,0,0,scale*dpr,0,0);
 }
-addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,150));
+addEventListener('resize',resize);
+var _rk=document.getElementById('rot-ok');
+if(_rk)_rk.onclick=function(){rotOK=true;document.body.classList.remove('port');resize();}; addEventListener('orientationchange',()=>setTimeout(resize,150));
 let C={};
 function cols(){ ['--bg','--bg2','--line','--dark','--ink','--dim','--acc']
   .forEach(n=>C[n]=getComputedStyle(document.documentElement).getPropertyValue(n).trim()); }

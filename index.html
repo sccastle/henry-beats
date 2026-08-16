@@ -144,7 +144,7 @@
     </div>
   </div>
 </div>
-<div id="rot"><b style="color:var(--acc);font-size:18px;font-weight:400">请把屏幕横过来</b><span>这个游戏是横屏的</span></div>
+<div id="rot"><b style="color:var(--acc);font-size:18px;font-weight:400">请把屏幕横过来</b><span>这个游戏是横屏的</span><button id="rot-ok" style="margin-top:6px;appearance:none;border:2px solid #7fd6c0;background:transparent;color:#7fd6c0;font:inherit;font-size:13px;padding:9px 26px;cursor:pointer;letter-spacing:.08em">就这样玩</button></div>
 
 <script>
 (function(){
@@ -188,7 +188,7 @@ function pxText(g,s,x,y,u,col,align){
 }
 
 /* ===================== 数据 ===================== */
-const VER='V0.12.1';
+const VER='V0.12.2';
 const MEDIA_CACHE='jhb-media';   /* 与 sw.js 一致，不随版本变 */
 const PBTN={x:10,y:5,w:52,h:34};
 let SPB=0, AOFF=0, IN=0, OUT=0, FADE=3.5, TOTB=0;
@@ -318,9 +318,10 @@ async function loadSong(i){
 /* ===================== 画布 ===================== */
 const cv=document.getElementById('cv'), g=cv.getContext('2d');
 let scale=1;
+let rotOK=false;   /* 用户点过「就这样玩」之后不再提示 */
 function resize(){
   const W=window.innerWidth,H=window.innerHeight;
-  document.body.classList.toggle('port',H>W*1.02);
+  document.body.classList.toggle('port', VW*scale<460 && H>W && !rotOK);
   scale=Math.min(W/VW,H/VH);
   const dpr=Math.min(window.devicePixelRatio||1,2.5);
   cv.style.width=(VW*scale)+'px'; cv.style.height=(VH*scale)+'px';
@@ -329,6 +330,8 @@ function resize(){
   g.imageSmoothingEnabled=false;
 }
 addEventListener('resize',resize);
+var _rk=document.getElementById('rot-ok');
+if(_rk)_rk.onclick=function(){rotOK=true;document.body.classList.remove('port');resize();};
 addEventListener('orientationchange',()=>setTimeout(resize,150));
 let C={};
 function cols(){ ['--bg','--bg2','--bg3','--line','--dark','--ink','--dim','--acc','--c0','--c1','--c2','--c3']
